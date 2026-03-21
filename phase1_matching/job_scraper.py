@@ -3,7 +3,6 @@ import os
 import json
 import time
 import requests
-from bs4 import BeautifulSoup
 from dotenv import load_dotenv
 from phase1_matching.skill_extractor import extract_skills
 from phase1_matching.experience_estimator import estimate_experience
@@ -16,146 +15,126 @@ BASE_URL       = "https://api.adzuna.com/v1/api/jobs/in/search"
 PROFILE_PATH   = "data/profile.json"
 COMPANIES_PATH = "data/companies.json"
 OUTPUT_PATH    = "data/job_listings.json"
-PAGE_SIZE      = 50    # Adzuna max per page
+
+PAGE_SIZE      = 50     # Adzuna max per page
+MAX_PAGES      = 3      # cap at 150 jobs per company
+REQUEST_DELAY  = 0.3    # seconds between page requests
+
+PRIORITY_SKILLS = [
+    "Python", "Java", "SQL", "JavaScript", "React",
+    "Node.js", "Spring Boot", "AWS", "Docker", "Git",
+    "Machine Learning", "MongoDB", "PostgreSQL", "TypeScript"
+]
 
 
-def load_profile():
-    with open(PROFILE_PATH, "r") as f:
+def load_json(path):
+    with open(path, "r") as f:
         return json.load(f)
 
 
-def load_companies():
-    with open(COMPANIES_PATH, "r") as f:
-        return json.load(f)
-
-
-def build_skill_query(skills):
-    # Top 5 skills keeps query focused and avoids over-filtering
-    return " ".join(skills[:5])
-
-
-def fetch_full_description(job_url):
+def build_skill_query(user_skills):
     """
-    Fetches the actual Adzuna job detail page and extracts
-    the full description text — including skills sections that
-    the API truncates.
-
-    Returns full text string, or empty string on failure.
+    Picks top 3 widely-indexed skills for Adzuna query.
+    3 skills = broad enough to return results,
+    specific enough to filter irrelevant roles.
     """
-    try:
-        headers  = {"User-Agent": "Mozilla/5.0"}
-        response = requests.get(job_url, headers=headers, timeout=10)
-        if response.status_code != 200:
-            return ""
-        soup = BeautifulSoup(response.text, "html.parser")
-
-        # Adzuna detail pages wrap description in these selectors
-        selectors = [
-            "section.adp-body",
-            "div.adp-description",
-            "div[class*='description']",
-            "div[class*='job-description']"
-        ]
-        for selector in selectors:
-            element = soup.select_one(selector)
-            if element:
-                return element.get_text(separator=" ", strip=True)
-
-        # Fallback — grab all paragraph text from the page
-        paragraphs = soup.find_all("p")
-        return " ".join(p.get_text() for p in paragraphs)
-
-    except Exception:
-        return ""
+    priority_matches = [s for s in user_skills if s in PRIORITY_SKILLS]
+    chosen = priority_matches[:3] if priority_matches else user_skills[:3]
+    return " ".join(chosen)
 
 
-def fetch_all_pages(company_name, skill_query):
+def fetch_jobs(company_name, skill_query):
     """
-    Paginates through ALL Adzuna result pages for a company + skill query.
-    Stops when a page returns 0 results or an error occurs.
+    Fetches all available jobs for a company+skill query.
 
-    Adzuna URL format:
-        /search/1  → page 1
-        /search/2  → page 2  ...and so on
+    Uses Adzuna's total_count field to calculate exact pages needed
+    instead of blindly paginating until empty.
+
+    Deduplicates within a company's results by URL — Adzuna
+    sometimes returns the same listing on multiple pages.
     """
     all_results = []
-    page        = 1
+    seen_urls   = set()
 
-    while True:
+    for page in range(1, MAX_PAGES + 1):
         params = {
             "app_id"          : APP_ID,
             "app_key"         : APP_KEY,
             "results_per_page": PAGE_SIZE,
-            "what_and"        : skill_query,
-            "company"         : company_name,
+            "what_and"        : f"{company_name} {skill_query}",
             "where"           : "India",
             "content-type"    : "application/json"
         }
 
-        response = requests.get(f"{BASE_URL}/{page}", params=params)
-
-        if response.status_code != 200:
-            print(f"    [✗] HTTP {response.status_code} on page {page} — stopping.")
+        try:
+            response = requests.get(
+                f"{BASE_URL}/{page}", params=params, timeout=15
+            )
+        except requests.exceptions.RequestException as e:
+            print(f"    [✗] Request failed on page {page} — {e}")
             break
 
-        results = response.json().get("results", [])
+        if response.status_code != 200:
+            print(f"    [✗] HTTP {response.status_code} on page {page}")
+            break
+
+        data         = response.json()
+        results      = data.get("results", [])
+        total_count  = data.get("count", 0)
 
         if not results:
-            break   # no more pages
+            break
 
-        all_results.extend(results)
-        print(f"    Page {page} → {len(results)} jobs fetched")
+        # Deduplicate within this company's results
+        new_results = []
+        for job in results:
+            url = job.get("redirect_url", "")
+            if url and url not in seen_urls:
+                seen_urls.add(url)
+                new_results.append(job)
 
-        if len(results) < PAGE_SIZE:
-            break   # last page (partial page = final page)
+        all_results.extend(new_results)
 
-        page += 1
-        time.sleep(0.5)   # polite delay between page requests
+        # Calculate total pages available from Adzuna's count
+        total_pages = min(
+            MAX_PAGES,
+            -(-total_count // PAGE_SIZE)   # ceiling division
+        )
+
+        print(f"    Page {page}/{total_pages} → "
+              f"{len(new_results)} new jobs "
+              f"({len(results) - len(new_results)} duplicates removed)")
+
+        # Stop if we've fetched everything available
+        if page >= total_pages or len(results) < PAGE_SIZE:
+            break
+
+        time.sleep(REQUEST_DELAY)
 
     return all_results
 
 
 def parse_job(raw_job, company_name):
     """
-    Parses a single Adzuna job dict into our standard structure.
+    Extracts and structures a single Adzuna job dict.
 
-    Skills strategy:
-        Step 1 → extract from API description (fast, always available)
-        Step 2 → if skills list is empty, fetch full page and re-extract
-        This ensures we don't miss skills that appear below the API truncation.
-
-    Experience strategy:
-        Keyword-first detection handles "fresher", "entry-level", "senior" etc.
-        Falls back to year/date math if no keywords found.
-        Stores only experience_level — cleaner for display.
+    Normalizes company name to the one from companies.json
+    instead of whatever Adzuna returns — keeps grouping clean.
     """
-    api_description = raw_job.get("description", "")
-    if not api_description:
+    description = raw_job.get("description", "")
+    if not description:
         return None
 
-    job_url = raw_job.get("redirect_url", "")
-
-    # Step 1 — try skills from API description
-    required_skills = extract_skills(api_description)
-
-    # Step 2 — if empty, fetch the full page for complete skills
-    if not required_skills and job_url:
-        print(f"      [↻] Fetching full page for skills → {raw_job.get('title','')}")
-        full_description = fetch_full_description(job_url)
-        if full_description:
-            required_skills = extract_skills(full_description)
-            # use full description for experience detection too
-            api_description = full_description
-
-    level, _ = estimate_experience(api_description, source="job")
+    required_skills = extract_skills(description)
+    level, _        = estimate_experience(description, source="job")
 
     return {
-        "title"           : raw_job.get("title", "N/A"),
+        "title"           : raw_job.get("title", "N/A").strip(),
         "company"         : company_name,
         "location"        : raw_job.get("location", {}).get("display_name", "N/A"),
-        "url"             : job_url,
+        "url"             : raw_job.get("redirect_url", "N/A"),
         "date_posted"     : raw_job.get("created", "N/A")[:10],
-        "description"     : api_description[:500],
+        "description"     : description[:500],
         "required_skills" : required_skills,
         "experience_level": level
     }
@@ -163,12 +142,14 @@ def parse_job(raw_job, company_name):
 
 def scrape_jobs():
     """
-    Master function — called by main.py.
-    Loads profile + companies, paginates through all results,
-    saves structured job listings for Task 3 skill matching.
+    Master function — loads profile + companies, fetches
+    deduplicated skill-relevant jobs, saves to job_listings.json.
+
+    Cross-company deduplication: same job URL appearing under
+    multiple company searches is removed here.
     """
-    profile   = load_profile()
-    companies = load_companies()
+    profile   = load_json(PROFILE_PATH)
+    companies = load_json(COMPANIES_PATH)
 
     user_skills = profile.get("skills", [])
     if not user_skills:
@@ -176,24 +157,34 @@ def scrape_jobs():
         return []
 
     skill_query = build_skill_query(user_skills)
-    print(f"[i] Skill filter : {skill_query}")
-    print(f"[i] Companies    : {[c['name'] for c in companies]}")
 
-    all_jobs = []
+    print(f"[i] Skill filter : {skill_query}")
+    print(f"[i] Companies    : {[c['name'] for c in companies]}\n")
+
+    all_jobs       = []
+    seen_urls      = set()     # cross-company deduplication
+    company_counts = {}
 
     for company in companies:
         name = company["name"]
-        print(f"\n[→] Scraping all relevant jobs at {name}...")
+        print(f"[→] {name}")
 
-        raw_jobs    = fetch_all_pages(name, skill_query)
+        raw_jobs    = fetch_jobs(name, skill_query)
         parsed_jobs = [parse_job(r, name) for r in raw_jobs]
-        valid_jobs  = [j for j in parsed_jobs if j is not None]
 
-        print(f"    Total valid jobs : {len(valid_jobs)}")
-        all_jobs.extend(valid_jobs)
+        # Cross-company deduplication — remove jobs seen in earlier companies
+        unique_jobs = []
+        for job in parsed_jobs:
+            if job and job["url"] not in seen_urls:
+                seen_urls.add(job["url"])
+                unique_jobs.append(job)
+
+        company_counts[name] = len(unique_jobs)
+        print(f"    Saved : {len(unique_jobs)} unique jobs\n")
+        all_jobs.extend(unique_jobs)
 
     with open(OUTPUT_PATH, "w") as f:
         json.dump(all_jobs, f, indent=2)
 
-    print(f"\n[✓] {len(all_jobs)} jobs saved → {OUTPUT_PATH}")
+    print(f"[✓] {len(all_jobs)} total unique jobs saved → {OUTPUT_PATH}\n")
     return all_jobs
