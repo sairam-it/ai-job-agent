@@ -1,0 +1,22 @@
+[
+  { "name": "Google" },
+  { "name": "Microsoft" },
+  { "name": "Amazon" },
+  { "name": "Infosys" },
+  { "name": "TCS" },
+  { "name": "Meta" },
+  { "name": "Wipro" },
+  { "name": "HCL Technologies" },
+  { "name": "Accenture" },
+  { "name": "IBM" },
+  { "name": "Adobe" },
+    { "name": "Oracle" },
+    { "name": "SAP" },
+    { "name": "Salesforce" },
+    { "name": "Cisco Systems" },
+    { "name": "Intel Corporation" },
+    { "name": "Dell Technologies" },
+    { "name": "HP Inc." },
+    { "name": "Uber" },
+    { "name": "Airbnb" }
+]

@@ -1,0 +1,76 @@
+[
+  {
+    "title": "qa engineering",
+    "company": "TCS",
+    "location": "Chennai, Tamil Nadu",
+    "url": "https://www.adzuna.in/details/5635485580?utm_medium=api&utm_source=c25fbd77",
+    "date_posted": "2026-02-19",
+    "experience_level": "entry",
+    "match_score": 100,
+    "matched_skills": [
+      "Python",
+      "Java",
+      "SQL",
+      "JavaScript",
+      "Git"
+    ],
+    "missing_skills": [],
+    "all_required": [
+      "Python",
+      "Java",
+      "SQL",
+      "JavaScript",
+      "Git"
+    ]
+  },
+  {
+    "title": "Python Developer (3 to 5 Years)",
+    "company": "Oracle",
+    "location": "Hyderabad, Telangana",
+    "url": "https://www.adzuna.in/details/5668438393?utm_medium=api&utm_source=c25fbd77",
+    "date_posted": "2026-03-16",
+    "experience_level": null,
+    "match_score": 100,
+    "matched_skills": [
+      "Python",
+      "Java",
+      "SQL",
+      "JavaScript",
+      "Git",
+      "React"
+    ],
+    "missing_skills": [],
+    "all_required": [
+      "Python",
+      "Java",
+      "SQL",
+      "JavaScript",
+      "Git",
+      "React"
+    ]
+  },
+  {
+    "title": "Staff Consultant - UX Designer Core Banking",
+    "company": "Oracle",
+    "location": "Ahmedabad, Gujarat",
+    "url": "https://www.adzuna.in/details/5648337885?utm_medium=api&utm_source=c25fbd77",
+    "date_posted": "2026-02-28",
+    "experience_level": "mid",
+    "match_score": 100,
+    "matched_skills": [
+      "Python",
+      "Java",
+      "SQL",
+      "JavaScript",
+      "Git"
+    ],
+    "missing_skills": [],
+    "all_required": [
+      "Python",
+      "Java",
+      "SQL",
+      "JavaScript",
+      "Git"
+    ]
+  }
+]
