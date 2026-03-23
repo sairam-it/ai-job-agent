@@ -1,9 +1,1 @@
-[
-  { "name": "Google" },
-  { "name": "Microsoft" },
-  { "name": "Amazon" },
-  { "name": "Infosys" },
-  { "name": "TCS" },
-  { "name": "Meta" },
-  { "name": "Wipro" }
-]
+[{"name": "Google"}, {"name": "TCS"}, {"name": "Amazon"}]
