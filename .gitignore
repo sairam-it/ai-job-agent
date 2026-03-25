@@ -4,3 +4,4 @@ __pycache__/
 *.pyc
 data/profile.json
 data/job_listings.json
+.DS_Store
