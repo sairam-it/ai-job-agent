@@ -3,6 +3,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from api.routes import resume, companies, jobs
 from api.database import client, MONGODB_DB_NAME
+from api.routes import resume, companies, jobs, auth
 
 app = FastAPI(
     title       = "AI Job Agent API",
@@ -51,3 +52,5 @@ async def test_db():
     doc    = await resume_collection.find_one({"test": "hello"}, {"_id": 0})
     await resume_collection.delete_one({"test": "hello"})
     return {"status": "MongoDB write/read working", "doc": doc}
+
+app.include_router(auth.router, prefix="/api", tags=["Auth"])

@@ -14,6 +14,9 @@ export function AppProvider({ children }) {
 
   // On mount, restore user_id from localStorage
   useEffect(() => {
+    // Only run on client side
+    if (typeof window === 'undefined') return
+    
     const storedUserId = localStorage.getItem('ai_job_agent_user_id')
     if (storedUserId) {
       setUserId(storedUserId)
@@ -38,6 +41,9 @@ export function AppProvider({ children }) {
 
   // Persist user_id to localStorage when it changes
   useEffect(() => {
+    // Only run on client side
+    if (typeof window === 'undefined') return
+    
     if (user_id) {
       localStorage.setItem('ai_job_agent_user_id', user_id)
     }
@@ -74,7 +80,19 @@ export function AppProvider({ children }) {
 export function useApp() {
   const context = useContext(AppContext)
   if (context === undefined) {
-    throw new Error('useApp must be used within an AppProvider')
+    // Return default values during SSR instead of throwing
+    return {
+      user_id: null,
+      setUserId: () => {},
+      profile: null,
+      setProfile: () => {},
+      companies: [],
+      setCompanies: () => {},
+      jobsCount: 0,
+      setJobsCount: () => {},
+      isLoading: false,
+      clearSession: () => {}
+    }
   }
   return context
 }

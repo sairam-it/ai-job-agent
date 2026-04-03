@@ -1,7 +1,10 @@
 "use client"
 
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
+import { useState, useEffect } from 'react'
 import { Zap, Upload, Building2, BarChart3, Target, Award, Search, Github } from 'lucide-react'
+import { useApp } from '@/lib/context/AppContext'
 
 // Hero job cards data
 const heroCards = [
@@ -135,24 +138,56 @@ function HeroCard({ card, index }) {
 }
 
 export default function LandingPage() {
+  const router = useRouter()
+  const [isClient, setIsClient] = useState(false)
+  const { user_id } = useApp()
+
+  useEffect(() => {
+    setIsClient(true)
+  }, [])
+
   const scrollToHowItWorks = () => {
     document.getElementById('how-it-works')?.scrollIntoView({ behavior: 'smooth' })
+  }
+
+  const handleGetStarted = () => {
+    if (!user_id) {
+      router.push('/auth')
+      return
+    }
+    router.push('/upload')
+  }
+
+  const handleUploadResume = () => {
+    if (!user_id) {
+      router.push('/auth')
+      return
+    }
+    router.push('/upload')
   }
 
   return (
     <div className="min-h-screen bg-[#0F172A] animate-fade-in">
       {/* Top Bar */}
-      <header className="max-w-7xl mx-auto px-4 py-4 flex items-center justify-between">
+      <header className="max-w-7xl mx-auto px-4 py-4 flex items-center justify-between" suppressHydrationWarning>
         <div className="flex items-center gap-2">
           <Zap className="w-6 h-6 text-[#7C3AED]" />
           <span className="text-white font-bold text-lg">AI Job Agent</span>
         </div>
-        <Link
-          href="/upload"
-          className="px-4 py-2 border border-[#7C3AED] text-[#7C3AED] rounded-full text-sm font-medium hover:bg-[#7C3AED] hover:text-white transition-colors"
-        >
-          Get Started
-        </Link>
+        <div className="flex items-center gap-3" suppressHydrationWarning>
+          <Link
+            href="/auth"
+            className="px-6 py-2.5 bg-[#1E293B] text-white rounded-full text-sm font-semibold border border-[#334155] hover:bg-[#334155] hover:border-[#7C3AED] transition-all duration-200"
+          >
+            Sign In
+          </Link>
+          <button
+            onClick={handleGetStarted}
+            className="px-6 py-2.5 border border-[#7C3AED] text-[#7C3AED] rounded-full text-sm font-semibold hover:bg-[#7C3AED] hover:text-white transition-all duration-200"
+          >
+            Get Started
+          </button>
+        </div>
       </header>
 
       {/* Hero Section */}
@@ -175,13 +210,13 @@ export default function LandingPage() {
               </p>
 
               <div className="flex flex-col sm:flex-row gap-4">
-                <Link
-                  href="/upload"
+                <button
+                  onClick={handleUploadResume}
                   className="inline-flex items-center justify-center gap-2 px-8 py-4 bg-[#7C3AED] text-white rounded-lg text-lg font-semibold hover:bg-[#6D28D9] transition-colors"
                 >
                   Upload Your Resume
                   <span aria-hidden="true">→</span>
-                </Link>
+                </button>
                 <button
                   onClick={scrollToHowItWorks}
                   className="inline-flex items-center justify-center gap-2 px-8 py-4 border border-white text-white rounded-lg text-lg font-semibold hover:bg-white hover:text-[#0F172A] transition-colors"
@@ -278,7 +313,7 @@ export default function LandingPage() {
       <footer className="bg-[#0F172A] border-t border-[#334155] py-8">
         <div className="max-w-7xl mx-auto px-4 text-center">
           <p className="text-[#64748B] text-sm mb-4">
-            Built with ❤️ · CBIT Hyderabad · 2026
+            Built by Sairam Goud Palle · CBIT Hyderabad · 2026
           </p>
           <a
             href="https://github.com/sairam-it/ai-job-agent"
