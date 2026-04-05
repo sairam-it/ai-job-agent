@@ -16,6 +16,6 @@ def build_profile(raw_text):
     with open("data/profile.json", "w") as f:
         json.dump(profile, f, indent=2)
 
-    print(f"[✓] Skills     : {skills}")
-    print(f"[✓] Experience : {level} ({years} yrs)")
+    # print(f"[✓] Skills     : {skills}")
+    # print(f"[✓] Experience : {level} ({years} yrs)")
     return profile
