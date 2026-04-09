@@ -1,6 +1,5 @@
 # job_scraper.py
 import os
-import json
 import time
 import requests
 from dotenv import load_dotenv
@@ -9,27 +8,19 @@ from phase1_matching.experience_estimator import estimate_experience
 
 load_dotenv()
 
-APP_ID         = os.getenv("ADZUNA_APP_ID")
-APP_KEY        = os.getenv("ADZUNA_APP_KEY")
-BASE_URL       = "https://api.adzuna.com/v1/api/jobs/in/search"
-PROFILE_PATH   = "data/profile.json"
-COMPANIES_PATH = "data/companies.json"
-OUTPUT_PATH    = "data/job_listings.json"
+APP_ID    = os.getenv("ADZUNA_APP_ID")
+APP_KEY   = os.getenv("ADZUNA_APP_KEY")
+BASE_URL  = "https://api.adzuna.com/v1/api/jobs/in/search"
 
-PAGE_SIZE      = 50
-MAX_PAGES      = 3
-REQUEST_DELAY  = 0.3
+PAGE_SIZE     = 50
+MAX_PAGES     = 3
+REQUEST_DELAY = 0.3
 
 PRIORITY_SKILLS = [
     "Python", "Java", "SQL", "JavaScript", "React",
     "Node.js", "Spring Boot", "AWS", "Docker", "Git",
     "Machine Learning", "MongoDB", "PostgreSQL", "TypeScript"
 ]
-
-
-def load_json(path):
-    with open(path, "r") as f:
-        return json.load(f)
 
 
 def build_skill_query(user_skills):
@@ -57,12 +48,10 @@ def fetch_jobs(company_name, skill_query):
                 f"{BASE_URL}/{page}", params=params, timeout=15
             )
         except requests.exceptions.RequestException as e:
-            # keep — error message useful for debugging connection issues
             print(f"    [✗] Request failed on page {page} — {e}")
             break
 
         if response.status_code != 200:
-            # keep — error message useful for debugging API issues
             print(f"    [✗] HTTP {response.status_code} on page {page}")
             break
 
@@ -82,14 +71,7 @@ def fetch_jobs(company_name, skill_query):
 
         all_results.extend(new_results)
 
-        total_pages = min(
-            MAX_PAGES,
-            -(-total_count // PAGE_SIZE)
-        )
-
-        # print(f"    Page {page}/{total_pages} → "
-        #       f"{len(new_results)} new jobs "
-        #       f"({len(results) - len(new_results)} duplicates removed)")
+        total_pages = min(MAX_PAGES, -(-total_count // PAGE_SIZE))
 
         if page >= total_pages or len(results) < PAGE_SIZE:
             break
@@ -119,48 +101,34 @@ def parse_job(raw_job, company_name):
     }
 
 
-def scrape_jobs():
-    profile   = load_json(PROFILE_PATH)
-    companies = load_json(COMPANIES_PATH)
+def scrape_jobs(user_skills: list, companies: list) -> list:
+    """
+    Refactored to accept parameters directly — no disk I/O.
 
-    user_skills = profile.get("skills", [])
+    Parameters:
+        user_skills : list of skill strings from user's resume
+        companies   : list of dicts [{"name": "Google"}, ...]
+
+    Returns:
+        list of parsed job dicts (in-memory only)
+    """
     if not user_skills:
-        # keep — meaningful error, tells caller what went wrong
-        print("[✗] No skills in profile.json — run Task 1 first.")
+        print("[✗] No skills provided to scraper.")
         return []
 
     skill_query = build_skill_query(user_skills)
-
-    # print(f"[i] Skill filter : {skill_query}")
-    # print(f"[i] Companies    : {[c['name'] for c in companies]}\n")
-
-    all_jobs      = []
-    seen_urls     = set()
-    company_counts= {}
+    all_jobs    = []
+    seen_urls   = set()
 
     for company in companies:
-        name = company["name"]
+        name      = company["name"]
+        raw_jobs  = fetch_jobs(name, skill_query)
 
-        # print(f"[→] {name}")
-
-        raw_jobs    = fetch_jobs(name, skill_query)
         parsed_jobs = [parse_job(r, name) for r in raw_jobs]
 
-        unique_jobs = []
         for job in parsed_jobs:
             if job and job["url"] not in seen_urls:
                 seen_urls.add(job["url"])
-                unique_jobs.append(job)
-
-        company_counts[name] = len(unique_jobs)
-
-        # print(f"    Saved : {len(unique_jobs)} unique jobs\n")
-
-        all_jobs.extend(unique_jobs)
-
-    with open(OUTPUT_PATH, "w") as f:
-        json.dump(all_jobs, f, indent=2)
-
-    # print(f"[✓] {len(all_jobs)} total unique jobs saved → {OUTPUT_PATH}\n")
+                all_jobs.append(job)
 
     return all_jobs

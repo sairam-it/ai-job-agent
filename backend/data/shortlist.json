@@ -1,560 +1,303 @@
 [
   {
-    "title": "Java Lead",
-    "company": "Amazon",
+    "title": "Senior Software Engineer (Full Stack)",
+    "company": "Microsoft",
     "location": "Bangalore, Karnataka",
-    "url": "https://www.adzuna.in/details/3881879706?utm_medium=api&utm_source=c25fbd77",
-    "date_posted": "2023-01-28",
+    "url": "https://www.adzuna.in/details/5668232006?utm_medium=api&utm_source=c25fbd77",
+    "date_posted": "2026-03-16",
     "experience_level": "senior",
     "grade": "A",
     "raw_match": 100,
-    "match_score": 179,
+    "match_score": 139,
     "matched_skills": [
-      "Python",
-      "Java",
-      "JavaScript",
-      "AWS",
-      "SQL"
+      "TypeScript",
+      "C",
+      "React"
     ],
     "missing_skills": [],
     "all_required": [
-      "Python",
-      "Java",
-      "JavaScript",
-      "AWS",
-      "SQL"
+      "TypeScript",
+      "C",
+      "React"
     ],
-    "description": "Responsibilities \uf0b7 Be a part of IOT Product portfolio and execute towards Digital Transformational initiatives. Prepare design documents in collaboration with product managers and engineering squads in development of use cases for new features. \uf0b7 Hands on product lead developer expertise in designing solutions running on hybrid cloud environments. \uf0b7 Work as a Software Lead in application development using Java, JavaScript, Python, SQL and other latest technologies running on AWS environments. \uf0b7\u2026"
+    "description": "Overview Job Title: Senior Software Engineer The SIX team (Server, Intelligence, and eXperiences) operates at a critical intersection where Windows Server meets its customers. We design and build products and features that shape how people manage and interact with server instances, explore the evolving role of Server in AI, and support both our internal partners and a diverse global customer base. Our work spans a broad and modern technology stack, including .NET, C#, C++, TypeScript, React, an\u2026"
   },
   {
-    "title": "ERP Developer",
-    "company": "Microsoft",
-    "location": "Surat, Gujarat",
-    "url": "https://www.adzuna.in/details/5518689771?utm_medium=api&utm_source=c25fbd77",
-    "date_posted": "2025-11-29",
-    "experience_level": null,
-    "grade": "B",
-    "raw_match": 75,
-    "match_score": 173,
-    "matched_skills": [
-      "Python",
-      "Java",
-      "JavaScript",
-      "React",
-      "PostgreSQL",
-      "MySQL",
-      "MongoDB",
-      "Oracle",
-      "SQL"
-    ],
-    "missing_skills": [
-      "PHP",
-      "GraphQL",
-      "SQL Server"
-    ],
-    "all_required": [
-      "Python",
-      "Java",
-      "JavaScript",
-      "PHP",
-      "React",
-      "GraphQL",
-      "PostgreSQL",
-      "MySQL",
-      "MongoDB",
-      "SQL Server",
-      "Oracle",
-      "SQL"
-    ],
-    "description": "Required Skills & Qualifications Proven experience as an ERP Developer / ERP Technical Consultant Strong knowledge of ERP platforms (e.g., Odoo, SAP, Oracle NetSuite, Microsoft Dynamics, Tally ERP, or custom ERP) Proficiency in backend languages (Node.js, Python, Java, or PHP depending on ERP platform) Solid understanding of databases (MySQL, PostgreSQL, MongoDB, or SQL Server) Experience with API development and integration (REST, SOAP, GraphQL) Familiarity with front-end frameworks (React, An\u2026"
-  },
-  {
-    "title": "Java Developer - Full Stack",
-    "company": "Amazon",
-    "location": "Hyderabad, Telangana",
-    "url": "https://www.adzuna.in/details/4795851193?utm_medium=api&utm_source=c25fbd77",
-    "date_posted": "2024-07-26",
-    "experience_level": null,
-    "grade": "B",
-    "raw_match": 78,
-    "match_score": 162,
-    "matched_skills": [
-      "Python",
-      "Java",
-      "JavaScript",
-      "React",
-      "CSS",
-      "Spring Boot",
-      "AWS"
-    ],
-    "missing_skills": [
-      "Angular",
-      "HTML"
-    ],
-    "all_required": [
-      "Python",
-      "Java",
-      "JavaScript",
-      "React",
-      "Angular",
-      "HTML",
-      "CSS",
-      "Spring Boot",
-      "AWS"
-    ],
-    "description": "Looking for a candidate who can join us immediately and would like to hire a individual contributor and also can adapt as a team-player. What we are looking for: Hands-on experience with key development technologies including Java, J2E, Springboot, React, HTML/CSS/Javascript. Others such as Python, Angular would be beneficial. Knowledge of databases, integration architectures/patterns and data modelling essential. API best practices, application servers, cloud services (especially AWS) and code\u2026"
-  },
-  {
-    "title": "Chief Technology Officer (CTO)",
-    "company": "Amazon",
-    "location": "Bangalore, Karnataka",
-    "url": "https://www.adzuna.in/details/1929321508?utm_medium=api&utm_source=c25fbd77",
-    "date_posted": "2021-01-12",
-    "experience_level": null,
-    "grade": "B",
-    "raw_match": 78,
-    "match_score": 162,
-    "matched_skills": [
-      "Python",
-      "Java",
-      "JavaScript",
-      "React",
-      "CSS",
-      "MySQL",
-      "AWS"
-    ],
-    "missing_skills": [
-      "PHP",
-      "HTML"
-    ],
-    "all_required": [
-      "Python",
-      "Java",
-      "JavaScript",
-      "PHP",
-      "React",
-      "HTML",
-      "CSS",
-      "MySQL",
-      "AWS"
-    ],
-    "description": "Looking for web and mobile app developer own the tech platform build business with the founder exp in cloud and ecommerce domain hands on ecommerce development and rollout scaling business. ready to be long term player scale the tech team Skills:- Android Development, iOS App Development, Amazon Web Services (AWS), Web applications, Spree Commerce, React.js, PHP, Python, Java, Javascript, MySQL, HTML/CSS and Payment gateways"
-  },
-  {
-    "title": "Technology Development Manager",
+    "title": "Senior Software Engineer - Python, ELK",
     "company": "Amazon",
     "location": "India",
-    "url": "https://www.adzuna.in/details/2160609472?utm_medium=api&utm_source=c25fbd77",
-    "date_posted": "2021-05-04",
-    "experience_level": null,
-    "grade": "B",
-    "raw_match": 78,
-    "match_score": 162,
-    "matched_skills": [
-      "Java",
-      "JavaScript",
-      "MySQL",
-      "MongoDB",
-      "Jenkins",
-      "Git",
-      "AWS"
-    ],
-    "missing_skills": [
-      "Microservices",
-      "Elasticsearch"
-    ],
-    "all_required": [
-      "Java",
-      "JavaScript",
-      "Microservices",
-      "MySQL",
-      "MongoDB",
-      "Elasticsearch",
-      "Jenkins",
-      "Git",
-      "AWS"
-    ],
-    "description": "Technology Development Manager Location : Bangalore (5 Days WFH) Education Qualification : B.Tech/M.Tech (Must have good communication skills) Skills Required : Java, JEE, Spring Frameworks, REST, Object Oriented Analysis and Design,Microservices Architecture, MySQL, MongoDb, ElasticSearch, Git, Jenkins, Microservices, JSON, Javascript, Node.js, Amazon Web Services or any other cloud Experience : 8 to 17 years Role : As a Technology Development Manager, be passionate about technology strategy &\u2026"
-  },
-  {
-    "title": "Full Stack Developer- Python, React JS/Angular JS & AI Integration",
-    "company": "Microsoft",
-    "location": "Bangalore, Karnataka",
-    "url": "https://www.adzuna.in/details/5670159203?utm_medium=api&utm_source=c25fbd77",
-    "date_posted": "2026-03-18",
-    "experience_level": null,
-    "grade": "B",
-    "raw_match": 73,
-    "match_score": 160,
-    "matched_skills": [
-      "Python",
-      "JavaScript",
-      "React",
-      "CSS",
-      "PostgreSQL",
-      "MongoDB",
-      "Git",
-      "SQL"
-    ],
-    "missing_skills": [
-      "Angular",
-      "HTML",
-      "GitHub"
-    ],
-    "all_required": [
-      "Python",
-      "JavaScript",
-      "React",
-      "Angular",
-      "HTML",
-      "CSS",
-      "PostgreSQL",
-      "MongoDB",
-      "Git",
-      "GitHub",
-      "SQL"
-    ],
-    "description": "Roles and Responsibilities: Primary Skills: Python Development : Proficiency in Python for developing scripts, automation, and integration tasks. UI : Strong experience in React JS / Angular JS, JavaScript, HTML, CSS APIs : Strong experience in developing, consuming, and integrating RESTful APIs. Database : SQL/NOSQL hands on experience, such as Mongo DB , PostgreSQL Version Control : Proficiency with Git and GitHub for code versioning and collaboration. Project Management Tools : Familiarity w\u2026"
-  },
-  {
-    "title": "Tech Lead",
-    "company": "Amazon",
-    "location": "Bangalore, Karnataka",
-    "url": "https://www.adzuna.in/details/2036179550?utm_medium=api&utm_source=c25fbd77",
-    "date_posted": "2021-03-07",
-    "experience_level": null,
-    "grade": "B",
-    "raw_match": 75,
-    "match_score": 146,
-    "matched_skills": [
-      "Java",
-      "React",
-      "Spring Boot",
-      "PostgreSQL",
-      "MySQL",
-      "MongoDB"
-    ],
-    "missing_skills": [
-      "Express",
-      "Azure"
-    ],
-    "all_required": [
-      "Java",
-      "React",
-      "Express",
-      "Spring Boot",
-      "PostgreSQL",
-      "MySQL",
-      "MongoDB",
-      "Azure"
-    ],
-    "description": "5-7 years of relevant product design, development and testing experience Strong technical skills in java springboot/MVC frameworks, reactjS. API development, Cloud native solutions like lambda, azure functions is good to have. Database \u2013 primarily Mongo DB, Knowledge of postgres /MySQL is good to have DevOps - Knowledge of DevOps will be good to have API - Preferred experience with one of API gateway platform (Apigee, Mulesoft, Kong, WSO2) Good communication skills, with an ability to express a\u2026"
-  },
-  {
-    "title": "Python Developer",
-    "company": "Amazon",
-    "location": "Delhi, India",
-    "url": "https://www.adzuna.in/details/1171508444?utm_medium=api&utm_source=c25fbd77",
-    "date_posted": "2019-06-05",
-    "experience_level": null,
-    "grade": "B",
-    "raw_match": 62,
-    "match_score": 136,
-    "matched_skills": [
-      "Python",
-      "Java",
-      "JavaScript",
-      "CSS",
-      "MySQL",
-      "CI/CD",
-      "Git",
-      "AWS"
-    ],
-    "missing_skills": [
-      "Angular",
-      "HTML",
-      "Django",
-      "Redis",
-      "Algorithms"
-    ],
-    "all_required": [
-      "Python",
-      "Java",
-      "JavaScript",
-      "Angular",
-      "HTML",
-      "CSS",
-      "Django",
-      "MySQL",
-      "Redis",
-      "CI/CD",
-      "Git",
-      "AWS",
-      "Algorithms"
-    ],
-    "description": "Skills Required: 1. Hands on experience with Python, Django, Databases like MySQL 2. Hands-on software development, team management and project management experience. 3. Experience with Cloud technologies like AWS, CI/CD Processes 4. Good understanding of HTML, CSS, JAVA Script, Angular JS 5. Data structure and implementing optimized algorithms 6. Experience using code versioning systems like SVN, GIT is desirable 7. Additional Qualifications \u2013node.js, npm, NoSQL (Redis) 8. Quick Learner, Creat\u2026"
-  },
-  {
-    "title": "Java Back End Developer",
-    "company": "Google",
-    "location": "Bangalore, Karnataka",
-    "url": "https://www.adzuna.in/details/5679803440?utm_medium=api&utm_source=c25fbd77",
-    "date_posted": "2026-03-27",
-    "experience_level": null,
-    "grade": "A",
-    "raw_match": 80,
-    "match_score": 129,
-    "matched_skills": [
-      "Python",
-      "Java",
-      "JavaScript",
-      "SQL"
-    ],
-    "missing_skills": [
-      "Microservices"
-    ],
-    "all_required": [
-      "Python",
-      "Java",
-      "JavaScript",
-      "Microservices",
-      "SQL"
-    ],
-    "description": "Develop and maintain server-side applications and services using [specify programming languages, e.g., Node.js, Python, Java]. Design and implement RESTful APIs and microservices for scalable applications. Manage and optimize databases (e.g., SQL, NoSQL) to ensure data integrity and performance. Collaborate with front-end developers to integrate user-facing elements with server-side logic. Implement security and data protection measures for applications. Conduct code reviews, provide feedback, \u2026"
-  },
-  {
-    "title": "QA Engineer",
-    "company": "Google",
-    "location": "Hyderabad, Telangana",
-    "url": "https://www.adzuna.in/details/5678668119?utm_medium=api&utm_source=c25fbd77",
-    "date_posted": "2026-03-26",
-    "experience_level": null,
-    "grade": "A",
-    "raw_match": 80,
-    "match_score": 129,
-    "matched_skills": [
-      "Python",
-      "Java",
-      "JavaScript",
-      "MySQL"
-    ],
-    "missing_skills": [
-      "JUnit"
-    ],
-    "all_required": [
-      "Python",
-      "Java",
-      "JavaScript",
-      "MySQL",
-      "JUnit"
-    ],
-    "description": "Must Skills: Mobile handset testing, android application testing, Automation(Python, Java, Javascript), unit testing(Junit and bullseye), MySQL. Job Description Good knowledge on Voice Enabled solutions testing like SIRI, MS Cortona, Alexa & Google Assistant. Hands on experience on testing ASR, NLU and NLG in components level. Good knowledge on debug issues on AI based components like ASR, NLU, NLG & App Good knowledge on Android Application Testing and App development environment. Good Knowled\u2026"
-  },
-  {
-    "title": "Software Architect",
-    "company": "Google",
-    "location": "Bangalore, Karnataka",
-    "url": "https://www.adzuna.in/details/5625353390?utm_medium=api&utm_source=c25fbd77",
-    "date_posted": "2026-02-12",
+    "url": "https://www.adzuna.in/details/5586441751?utm_medium=api&utm_source=c25fbd77",
+    "date_posted": "2026-01-16",
     "experience_level": "senior",
-    "grade": "A",
-    "raw_match": 80,
-    "match_score": 129,
+    "grade": "D",
+    "raw_match": 100,
+    "match_score": 110,
+    "matched_skills": [
+      "Java",
+      "LLM"
+    ],
+    "missing_skills": [],
+    "all_required": [
+      "Java",
+      "LLM"
+    ],
+    "description": "Role Summary We are seeking a Senior Developer to architect and build the next generation of our Control Tower. This role requires a unique blend of high-concurrency backend engineering, custom data visualization, and the implementation of autonomous AI Agents using Spring AI and LLMs. You will be responsible for turning real-time data into actionable insights via Custom Kibana Plugins and AI-driven decision support. 1. Core Backend & Architecture Java Ecosystem: Deep expertise in Java with a s\u2026"
+  },
+  {
+    "title": "Java Developer",
+    "company": "Amazon",
+    "location": "Hyderabad, Telangana",
+    "url": "https://www.adzuna.in/details/5616903535?utm_medium=api&utm_source=c25fbd77",
+    "date_posted": "2026-02-06",
+    "experience_level": "senior",
+    "grade": "C",
+    "raw_match": 56,
+    "match_score": 100,
     "matched_skills": [
       "Python",
       "Java",
-      "JavaScript",
-      "Spring Boot"
+      "C",
+      "React",
+      "SQL"
     ],
     "missing_skills": [
-      "TypeScript"
+      "JavaScript",
+      "Angular",
+      "Vue",
+      "GraphQL"
+    ],
+    "all_required": [
+      "Python",
+      "Java",
+      "JavaScript",
+      "C",
+      "React",
+      "Angular",
+      "Vue",
+      "GraphQL",
+      "SQL"
+    ],
+    "description": "5\u201310 years of experience in backend or full-stack development (Java, C#, Python, or Node.js preferred). \u2022Design, develop, and deploy full-stack web applications (front-end, back-end, APIs, and databases). \u2022Build responsive, user-friendly UIs using modern JavaScript frameworks (React, Vue, or Angular). \u2022Develop robust backend services and RESTful or GraphQL APIs using Node.js, Python, Java, or similar technologies. \u2022Manage and optimize databases (SQL and NoSQL). \u2022Collaborate with UX/UI designers\u2026"
+  },
+  {
+    "title": "Software Engineer, Contract",
+    "company": "Amazon",
+    "location": "Hyderabad, Telangana",
+    "url": "https://www.adzuna.in/details/4397462759?utm_medium=api&utm_source=c25fbd77",
+    "date_posted": "2023-10-27",
+    "experience_level": "senior",
+    "grade": "C",
+    "raw_match": 50,
+    "match_score": 80,
+    "matched_skills": [
+      "Python",
+      "Java",
+      "TypeScript",
+      "Go"
+    ],
+    "missing_skills": [
+      "JavaScript",
+      "Spring Boot",
+      "AWS",
+      "Airflow"
     ],
     "all_required": [
       "Python",
       "Java",
       "JavaScript",
       "TypeScript",
-      "Spring Boot"
+      "Go",
+      "Spring Boot",
+      "AWS",
+      "Airflow"
     ],
-    "description": "The qualifications you need: Bachelor s or Master s degree in Computer Science, Software Engineering, or a related field. 10 years of experience as a Solution Architect, Software Architect, or a similar role. Strong background in Software Engineering, Integration, Data, and AI . Expertise in designing and implementing scalable and secure architectures . Proficiency in one or more - Java, Python, JavaScript, and TypeScript . Experience with Spring Boot for backend development. Experience with Re\u2026"
+    "description": "2 to 5 years of experience (or equivalent understanding of software engineering) Familiar with one backend language (Node, Go, Java, Python) Familiar with Javascript/Typescript and a UI framework Willingness and interest in learning new tech/processes (Airflow, AWS, IaaS, etc.) Skills:- J2EE, Spring Boot, Hibernate (Java), Python, Javascript, airflow, User Interface (UI) Design and Amazon Web Services (AWS)"
   },
   {
-    "title": "Hiring Backend Developer",
-    "company": "Google",
-    "location": "Bangalore, Karnataka",
-    "url": "https://www.adzuna.in/details/5679803469?utm_medium=api&utm_source=c25fbd77",
-    "date_posted": "2026-03-27",
-    "experience_level": null,
-    "grade": "A",
-    "raw_match": 80,
-    "match_score": 129,
-    "matched_skills": [
-      "Python",
-      "Java",
-      "JavaScript",
-      "SQL"
-    ],
-    "missing_skills": [
-      "Microservices"
-    ],
-    "all_required": [
-      "Python",
-      "Java",
-      "JavaScript",
-      "Microservices",
-      "SQL"
-    ],
-    "description": "Develop and maintain server-side applications and services using [specify programming languages, e.g., Node.js, Python, Java]. Design and implement RESTful APIs and microservices for scalable applications. Manage and optimize databases (e.g., SQL, NoSQL) to ensure data integrity and performance. Collaborate with front-end developers to integrate user-facing elements with server-side logic. Implement security and data protection measures for applications. Conduct code reviews, provide feedback, \u2026"
-  },
-  {
-    "title": "Hiring Backend Developer",
-    "company": "Google",
-    "location": "Bangalore, Karnataka",
-    "url": "https://www.adzuna.in/details/5679803193?utm_medium=api&utm_source=c25fbd77",
-    "date_posted": "2026-03-27",
-    "experience_level": null,
-    "grade": "A",
-    "raw_match": 80,
-    "match_score": 129,
-    "matched_skills": [
-      "Python",
-      "Java",
-      "JavaScript",
-      "SQL"
-    ],
-    "missing_skills": [
-      "Microservices"
-    ],
-    "all_required": [
-      "Python",
-      "Java",
-      "JavaScript",
-      "Microservices",
-      "SQL"
-    ],
-    "description": "Key Responsibilities: Develop and maintain server-side applications and services using [specify programming languages, e.g., Node.js, Python, Java]. Design and implement RESTful APIs and microservices for scalable applications. Manage and optimize databases (e.g., SQL, NoSQL) to ensure data integrity and performance. Collaborate with front-end developers to integrate user-facing elements with server-side logic. Implement security and data protection measures for applications. Conduct code revie\u2026"
-  },
-  {
-    "title": "Fullstack Developer",
-    "company": "Google",
-    "location": "Bangalore, Karnataka",
-    "url": "https://www.adzuna.in/details/1294003317?utm_medium=api&utm_source=c25fbd77",
-    "date_posted": "2019-10-11",
-    "experience_level": null,
-    "grade": "B",
-    "raw_match": 62,
-    "match_score": 111,
-    "matched_skills": [
-      "JavaScript",
-      "MySQL",
-      "Jenkins",
-      "CI/CD",
-      "Git"
-    ],
-    "missing_skills": [
-      "Express",
-      "Laravel",
-      "GitLab"
-    ],
-    "all_required": [
-      "JavaScript",
-      "Express",
-      "Laravel",
-      "MySQL",
-      "Jenkins",
-      "CI/CD",
-      "Git",
-      "GitLab"
-    ],
-    "description": "1. Experience in node.js, MySQL, Javascript. 2. Knowledge of JSON, XML, REST, SOAP, Git/SVN, Mvvm Architecture 3. The ability to manage scripts, CRON jobs. 4. Familiarity with continuous integration/build tools such as Jenkins, gitlab, basic CI CD. 5. Object oriented programming using node.js(Preferred) 6. Experience with frameworks such as Express js, Laravel framework is an added advantage 7. The candidate will also be responsible for developing webservices, dashboard, etc.for android app/web\u2026"
-  },
-  {
-    "title": "MS Dyanamics developer",
+    "title": "Security Technical Services Systems Integration Specialist",
     "company": "Microsoft",
+    "location": "Bangalore, Karnataka",
+    "url": "https://www.adzuna.in/details/5469045327?utm_medium=api&utm_source=c25fbd77",
+    "date_posted": "2025-10-29",
+    "experience_level": null,
+    "grade": "D",
+    "raw_match": 100,
+    "match_score": 69,
+    "matched_skills": [
+      "TypeScript"
+    ],
+    "missing_skills": [],
+    "all_required": [
+      "TypeScript"
+    ],
+    "description": "Make an impact with NTT DATA Join a company that is pushing the boundaries of what is possible. We are renowned for our technical excellence and leading innovations, and for making a difference to our clients and society. Our workplace embraces diversity and inclusion - it's a place where you can grow, belong and thrive. Your day at NTT DATA The Security Technical Services (TS) Systems Integration Specialist is a seasoned subject matter expert, responsible for providing technical support to cli\u2026"
+  },
+  {
+    "title": "JAVA Full Stack, Associate, Aladdin Engineering",
+    "company": "Microsoft",
+    "location": "Gurgaon, Haryana",
+    "url": "https://www.adzuna.in/details/5653074984?utm_medium=api&utm_source=c25fbd77",
+    "date_posted": "2026-03-04",
+    "experience_level": null,
+    "grade": "D",
+    "raw_match": 50,
+    "match_score": 35,
+    "matched_skills": [
+      "Java"
+    ],
+    "missing_skills": [
+      "Angular"
+    ],
+    "all_required": [
+      "Java",
+      "Angular"
+    ],
+    "description": "Responsibilities : Work on java fullstack development projects with Angular web development and java backend. Collaborate with team members in a multi-office, multi-country environment and Deliver high efficiency, high availability, concurrent and fault tolerant software systems. Significantly contribute to development of Aladdin s global, multi-asset platform. Work with product management and business users to define the roadmap for the product. Design and develop innovative solutions to compl\u2026"
+  },
+  {
+    "title": "Solution Architect",
+    "company": "Microsoft",
+    "location": "Chennai, Tamil Nadu",
+    "url": "https://www.adzuna.in/details/5664830436?utm_medium=api&utm_source=c25fbd77",
+    "date_posted": "2026-03-14",
+    "experience_level": null,
+    "grade": "D",
+    "raw_match": 50,
+    "match_score": 35,
+    "matched_skills": [
+      "Java"
+    ],
+    "missing_skills": [
+      "Oracle"
+    ],
+    "all_required": [
+      "Java",
+      "Oracle"
+    ],
+    "description": "Were Hiring: SME / Solution Architect (ERP, Cloud, DevOps & E2E Test Automation) Location: Chennai, India Work Mode: Onsite Job Type: Contract About the Company Oxydata Software Sdn Bhd, a 100% Malaysian-owned IT company established in 2006, is a trusted technology partner specializing in Microsoft, Java, SAP, and Oracle platforms, delivering IT Managed Services, DevOps, Outsourcing, and Enterprise Application Development to drive digital transformation for global clients. We are seeking a high\u2026"
+  },
+  {
+    "title": "Node.JS Developer",
+    "company": "Amazon",
     "location": "India",
-    "url": "https://www.adzuna.in/details/5511879669?utm_medium=api&utm_source=c25fbd77",
-    "date_posted": "2025-11-25",
-    "experience_level": null,
-    "grade": "C",
-    "raw_match": 57,
-    "match_score": 92,
+    "url": "https://www.adzuna.in/details/3696594561?utm_medium=api&utm_source=c25fbd77",
+    "date_posted": "2022-11-17",
+    "experience_level": "senior",
+    "grade": "D",
+    "raw_match": 50,
+    "match_score": 35,
     "matched_skills": [
-      "Python",
-      "Java",
+      "TypeScript"
+    ],
+    "missing_skills": [
+      "JavaScript"
+    ],
+    "all_required": [
       "JavaScript",
+      "TypeScript"
+    ],
+    "description": "Qualifications: \u2022 Bachelor\u2019s degree in Computer Science or IT related field \u2022 4-6 years of experience working across different product domains in a product development/engineering role \u2022 Good communication skills necessary to manage business requests and work with different teams across differ- ent geographies and time-zones; experience working with remote and distributed teams will be an added ad- vantage \u2022 Hands-on working knowledge and experience is requiredin: a. JavaScript, Typescript, Nod\u2026"
+  },
+  {
+    "title": "Support Engineer - Intelligent Document Processing, CORS - Rapid Solutions",
+    "company": "Amazon",
+    "location": "Bangalore, Karnataka",
+    "url": "https://www.adzuna.in/details/5675739686?utm_medium=api&utm_source=c25fbd77",
+    "date_posted": "2026-03-23",
+    "experience_level": null,
+    "grade": "D",
+    "raw_match": 50,
+    "match_score": 35,
+    "matched_skills": [
+      "LLM"
+    ],
+    "missing_skills": [
+      "Machine Learning"
+    ],
+    "all_required": [
+      "Machine Learning",
+      "LLM"
+    ],
+    "description": "Description We are seeking talented and innovative Support Engineer to join our team working at the intersection of artificial intelligence and compliance. In this role, you will leverage large language models (LLMs) and other advanced machine learning techniques to develop and maintain automated systems for validating compliance documents. Key job responsibilities - Implement and fine-tune large language models to accurately process and analyze complex compliance documentation - Develop and op\u2026"
+  },
+  {
+    "title": "Cloud & AI Platform Engineer",
+    "company": "Microsoft",
+    "location": "Bangalore, Karnataka",
+    "url": "https://www.adzuna.in/details/5664858065?utm_medium=api&utm_source=c25fbd77",
+    "date_posted": "2026-03-14",
+    "experience_level": null,
+    "grade": "D",
+    "raw_match": 29,
+    "match_score": 32,
+    "matched_skills": [
+      "GCP",
+      "LLM"
+    ],
+    "missing_skills": [
+      "AWS",
+      "Azure",
+      "Machine Learning",
+      "Generative AI",
+      "MLOps"
+    ],
+    "all_required": [
+      "AWS",
+      "Azure",
+      "GCP",
+      "Machine Learning",
+      "LLM",
+      "Generative AI",
+      "MLOps"
+    ],
+    "description": "Job Description: We are seeking a Cloud & AI Platform Engineer to design and operate AI-native infrastructure that supports large-scale machine learning, generative AI, and agentic AI systems. This role will focus on building secure, scalable, and automated multi-cloud platforms across AWS, Azure, GCP, and hybrid on-prem environments , enabling teams to deploy LLMs, AI agents, and data-driven applications reliably in production. You will work at the intersection of cloud engineering, MLOps, LLM\u2026"
+  },
+  {
+    "title": "Backend Developer for WK",
+    "company": "Microsoft",
+    "location": "Bangalore, Karnataka",
+    "url": "https://www.adzuna.in/details/5626585393?utm_medium=api&utm_source=c25fbd77",
+    "date_posted": "2026-02-13",
+    "experience_level": null,
+    "grade": "D",
+    "raw_match": 33,
+    "match_score": 23,
+    "matched_skills": [
       "SQL"
     ],
     "missing_skills": [
-      "C",
-      "PHP",
-      "HTML"
+      "SQL Server",
+      "Azure"
     ],
     "all_required": [
-      "Python",
-      "Java",
-      "JavaScript",
-      "C",
-      "PHP",
-      "HTML",
+      "SQL Server",
+      "Azure",
       "SQL"
     ],
-    "description": "Requires that any candidate know the M365 Collaboration environment. SharePoint Online, MS Teams. Exchange Online, Entra and Purview. Need developer that possess a strong understanding of Data Structure, Problem Solving abilities, SQL, PowerShell, MS Teams App Development, Python, Visual Basic, C#, JavaScript, Java, HTML, PHP, C. Need a strong understanding of the development lifecycle, and possess debugging skills time management, business acumen, and have a positive attitude is a must and ope\u2026"
+    "description": "Description We\u2019re hiring a Backend Engineer to design and build secure, scalable backend services on Microsoft Azure , with a strong emphasis on data modeling , API development , and serverless compute using Azure Functions . You\u2019ll work closely with product and front-end partners to deliver reliable APIs, integrate with Microsoft SQL Server on Microsoft Fabric , and implement robust authentication/authorization and API usage metering/billing . This role is ideal for someone who enjoys building\u2026"
   },
   {
-    "title": "Java Full Stack Engineer",
-    "company": "Microsoft",
+    "title": "Full Stack Developer -Java,AWS",
+    "company": "Amazon",
     "location": "Bangalore, Karnataka",
-    "url": "https://www.adzuna.in/details/5670159099?utm_medium=api&utm_source=c25fbd77",
-    "date_posted": "2026-03-18",
+    "url": "https://www.adzuna.in/details/2471003989?utm_medium=api&utm_source=c25fbd77",
+    "date_posted": "2021-09-19",
     "experience_level": null,
     "grade": "D",
-    "raw_match": 100,
-    "match_score": 69,
+    "raw_match": 33,
+    "match_score": 23,
     "matched_skills": [
       "Java"
     ],
-    "missing_skills": [],
+    "missing_skills": [
+      "AWS",
+      "IAM"
+    ],
     "all_required": [
-      "Java"
+      "Java",
+      "AWS",
+      "IAM"
     ],
-    "description": "Job Role: Java Full Stack Engineer At AT&T we re redefining the future of communication by connecting people to greater possibility with expertise, simplicity, and inspiration. At the heart of our purpose lies a diverse workforce of 200,000 people and a culture that aspires to serve customers first, act boldly, move faster, and win as one. Our Product Development group, part of AT &T s Technology Services (ATS) organization, is responsible for building software-based products, services, and pla\u2026"
-  },
-  {
-    "title": "Java Full Stack Engineer",
-    "company": "Microsoft",
-    "location": "Hyderabad, Telangana",
-    "url": "https://www.adzuna.in/details/5670159206?utm_medium=api&utm_source=c25fbd77",
-    "date_posted": "2026-03-18",
-    "experience_level": null,
-    "grade": "D",
-    "raw_match": 100,
-    "match_score": 69,
-    "matched_skills": [
-      "Java"
-    ],
-    "missing_skills": [],
-    "all_required": [
-      "Java"
-    ],
-    "description": "Job Role: Java Full Stack Engineer At AT&T we re redefining the future of communication by connecting people to greater possibility with expertise, simplicity, and inspiration. At the heart of our purpose lies a diverse workforce of 200,000 people and a culture that aspires to serve customers first, act boldly, move faster, and win as one. Our Product Development group, part of AT &T s Technology Services (ATS) organization, is responsible for building software-based products, services, and pla\u2026"
-  },
-  {
-    "title": "Senior Java Full Stack Engineer",
-    "company": "Microsoft",
-    "location": "Hyderabad, Telangana",
-    "url": "https://www.adzuna.in/details/5670159209?utm_medium=api&utm_source=c25fbd77",
-    "date_posted": "2026-03-18",
-    "experience_level": null,
-    "grade": "D",
-    "raw_match": 100,
-    "match_score": 69,
-    "matched_skills": [
-      "Java"
-    ],
-    "missing_skills": [],
-    "all_required": [
-      "Java"
-    ],
-    "description": "Job Role: Java Full Stack Engineer At AT&T we re redefining the future of communication by connecting people to greater possibility with expertise, simplicity, and inspiration. At the heart of our purpose lies a diverse workforce of 200,000 people and a culture that aspires to serve customers first, act boldly, move faster, and win as one. Our Product Development group, part of AT &T s Technology Services (ATS) organization, is responsible for building software-based products, services, and pla\u2026"
+    "description": "Job Description Primary Skills Server Side (Java) & AWS serverless framework. Must have hands-on experience on serverless framework. Design knowledge/experience of cloud-based web application. Familiarity with software design representation tools like astah, visio etc. Must have good experience on AWS (Overall knowledge, EC2 Volume, EC2 Security Group, EC2 AMI, Lambda, S3, AWSbackup, CloudWatch, CloudFormation, CloudTrail, IAM, SecretsManager, StepFunction, CostExplorer, KMS, VPC/Subnet) Unders\u2026"
   }
 ]

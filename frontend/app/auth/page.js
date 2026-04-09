@@ -7,7 +7,7 @@ import { useApp } from '@/lib/context/AppContext'
 
 export default function AuthPage() {
   const router = useRouter()
-  const { setUserId, setToken, setUserName } = useApp()
+  const { setUserId, setToken, setUserName, setProfile, setCompanies } = useApp()
 
   const [mode, setMode]               = useState('signin')
   const [loading, setLoading]         = useState(false)
@@ -84,18 +84,33 @@ export default function AuthPage() {
       const res = await fetch('http://localhost:8000/api/auth/signin', {
         method : 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body   : JSON.stringify({ email: signInEmail.trim(), password: signInPassword }),
+        body   : JSON.stringify({
+          email   : signInEmail.trim().toLowerCase(),
+          password: signInPassword
+        }),
       })
       const data = await res.json()
 
       if (res.ok) {
-        localStorage.setItem('ai_job_agent_user_id', data.user_id)
-        localStorage.setItem('ai_job_agent_token',   data.token)
-        localStorage.setItem('ai_job_agent_name',    data.name)
-        localStorage.setItem('ai_job_agent_email',   signInEmail.toLowerCase().trim())
+        // ── Auth stored in sessionStorage (via context setter) ──
         setUserId(data.user_id)
         setToken(data.token)
         setUserName(data.name)
+
+        // ── Persist display info in localStorage ──────────────
+        localStorage.setItem('ai_job_agent_name',  data.name)
+        localStorage.setItem('ai_job_agent_email', signInEmail.trim().toLowerCase())
+
+        // ── Restore profile if backend returned existing data ──
+        if (data.profile && data.profile.skills?.length > 0) {
+          setProfile(data.profile)
+        }
+
+        // ── Restore selected companies if returned ─────────────
+        if (data.companies && data.companies.length > 0) {
+          setCompanies(data.companies)
+        }
+
         router.push('/')
       } else {
         setError(formatApiError(data.detail || 'Sign in failed'))
