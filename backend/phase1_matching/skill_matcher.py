@@ -1,17 +1,8 @@
 # skill_matcher.py
-import json
 import math
 
-PROFILE_PATH         = "data/profile.json"
-JOBS_PATH            = "data/job_listings.json"
-OUTPUT_PATH          = "data/shortlist.json"
 MIN_SKILLS_COUNT     = 3
 TOP_JOBS_PER_COMPANY = 6
-
-
-def load_json(path):
-    with open(path, "r") as f:
-        return json.load(f)
 
 
 def calculate_match(user_skills, required_skills):
@@ -42,6 +33,7 @@ def get_grade(raw_score, skills_count):
 
 def match_jobs(user_skills, jobs):
     scored = []
+
     for job in jobs:
         required = job.get("required_skills", [])
         raw, weighted, matched, missing = calculate_match(user_skills, required)
@@ -73,7 +65,6 @@ def match_jobs(user_skills, jobs):
     for job in scored:
         company = job["company"]
         count   = company_counts.get(company, 0)
-
         if count < TOP_JOBS_PER_COMPANY:
             final_results.append(job)
             company_counts[company] = count + 1
@@ -82,63 +73,23 @@ def match_jobs(user_skills, jobs):
     return final_results
 
 
-def print_summary(results, user_skills):
-    # entire function commented out — terminal-only output, not shown to user
-    # meaningful = [j for j in results if len(j["all_required"]) >= MIN_SKILLS_COUNT]
-    # grade_dist = {}
-    # for j in meaningful:
-    #     grade_dist[j["grade"]] = grade_dist.get(j["grade"], 0) + 1
+def run_matcher(user_skills: list, jobs: list) -> list:
+    """
+    Refactored to accept parameters directly — no disk I/O.
 
-    # print(f"\n{'='*60}")
-    # print(f"  MATCH RESULTS  (0% jobs excluded  ·  top {TOP_JOBS_PER_COMPANY}/company)")
-    # print(f"{'='*60}")
-    # print(f"  Total jobs shown : {len(results)}")
-    # print(f"  Grade A (80%+)   : {grade_dist.get('A', 0)}")
-    # print(f"  Grade B (60%+)   : {grade_dist.get('B', 0)}")
-    # print(f"  Grade C (40%+)   : {grade_dist.get('C', 0)}")
-    # print(f"\n  TOP 10:")
+    Parameters:
+        user_skills : list of skill strings from user's resume
+        jobs        : list of job dicts from scraper (in-memory)
 
-    # for i, job in enumerate(results[:10], 1):
-    #     print(f"\n  [{job['grade']}] {i}. {job['title']} — {job['company']}")
-    #     print(f"       Match    : {job['raw_match']}%  (score: {job['match_score']})")
-    #     print(f"       Matched  : {', '.join(job['matched_skills'])}")
-    #     print(f"       Missing  : {', '.join(job['missing_skills']) or 'None'}")
-
-    # company_map = {}
-    # for j in results:
-    #     company_map.setdefault(j["company"], 0)
-    #     company_map[j["company"]] += 1
-    # print(f"\n  Per company: {company_map}")
-    # print(f"{'='*60}\n")
-    pass
-
-
-def run_matcher():
-    profile     = load_json(PROFILE_PATH)
-    jobs        = load_json(JOBS_PATH)
-    user_skills = profile.get("skills", [])
-
+    Returns:
+        list of ranked, graded job dicts (in-memory only)
+    """
     if not user_skills:
-        # keep — meaningful error, tells caller what went wrong
-        print("[✗] No skills in profile.json")
+        print("[✗] No skills provided to matcher.")
         return []
 
     if not jobs:
-        # keep — meaningful error, tells caller what went wrong
-        print("[✗] No jobs in job_listings.json")
+        print("[✗] No jobs provided to matcher.")
         return []
 
-    # print(f"[i] User skills : {user_skills}")
-    # print(f"[i] Total jobs  : {len(jobs)}")
-    # print(f"[i] 0% jobs will be excluded")
-    # print(f"[i] Max per company: {TOP_JOBS_PER_COMPANY}")
-
-    results = match_jobs(user_skills, jobs)
-
-    with open(OUTPUT_PATH, "w") as f:
-        json.dump(results, f, indent=2)
-
-    # print_summary(results, user_skills)
-    # print(f"[✓] {len(results)} jobs saved → {OUTPUT_PATH}")
-
-    return results
+    return match_jobs(user_skills, jobs)

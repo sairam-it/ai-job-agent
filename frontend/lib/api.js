@@ -4,7 +4,8 @@ const BASE_URL = 'http://localhost:8000'
 
 function getToken() {
   if (typeof window === 'undefined') return null
-  return localStorage.getItem('ai_job_agent_token')
+  // ── Token lives in sessionStorage (expires on tab close) ──
+  return sessionStorage.getItem('aija_session_token')
 }
 
 function authHeaders() {
@@ -71,7 +72,12 @@ export async function matchJobs(userId) {
 }
 
 export async function getJobs(userId, page = 1, filters = {}) {
-  const params = new URLSearchParams({ user_id: userId, page, per_page: 10, ...filters })
+  const params = new URLSearchParams({
+    user_id : userId,
+    page,
+    per_page: 10,
+    ...filters
+  })
   const res = await fetch(`${BASE_URL}/api/jobs?${params}`, {
     headers: authHeaders()
   })

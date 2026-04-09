@@ -1,9 +1,14 @@
 # api/server.py
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from api.routes import resume, companies, jobs
-from api.database import client, MONGODB_DB_NAME
+from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi.util import get_remote_address
+from slowapi.errors import RateLimitExceeded
 from api.routes import resume, companies, jobs, auth
+from api.database import client, MONGODB_DB_NAME
+
+# ── Rate limiter (shared across all routes) ───────────────
+limiter = Limiter(key_func=get_remote_address)
 
 app = FastAPI(
     title       = "AI Job Agent API",
@@ -11,6 +16,11 @@ app = FastAPI(
     version     = "1.0.0"
 )
 
+# ── Attach limiter to app state ───────────────────────────
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+
+# ── CORS ──────────────────────────────────────────────────
 app.add_middleware(
     CORSMiddleware,
     allow_origins     = ["http://localhost:3000", "https://yourapp.vercel.app"],
@@ -19,6 +29,8 @@ app.add_middleware(
     allow_headers     = ["*"]
 )
 
+# ── Routes ────────────────────────────────────────────────
+app.include_router(auth.router,      prefix="/api", tags=["Auth"])
 app.include_router(resume.router,    prefix="/api", tags=["Resume"])
 app.include_router(companies.router, prefix="/api", tags=["Companies"])
 app.include_router(jobs.router,      prefix="/api", tags=["Jobs"])
@@ -26,11 +38,6 @@ app.include_router(jobs.router,      prefix="/api", tags=["Jobs"])
 
 @app.on_event("startup")
 async def check_db_connection():
-    """
-    Runs when server starts.
-    Pings MongoDB — if connection fails you'll see the error immediately
-    instead of discovering it later during an API call.
-    """
     try:
         await client.admin.command("ping")
         print(f"[✓] MongoDB connected → database: {MONGODB_DB_NAME}")
@@ -40,17 +47,4 @@ async def check_db_connection():
 
 @app.get("/")
 async def root():
-    return {
-        "message": "AI Job Agent API is running",
-        "docs"   : "/docs"
-    }
-
-@app.get("/test-db")
-async def test_db():
-    from api.database import resume_collection
-    result = await resume_collection.insert_one({"test": "hello"})
-    doc    = await resume_collection.find_one({"test": "hello"}, {"_id": 0})
-    await resume_collection.delete_one({"test": "hello"})
-    return {"status": "MongoDB write/read working", "doc": doc}
-
-app.include_router(auth.router, prefix="/api", tags=["Auth"])
+    return {"message": "AI Job Agent API is running", "docs": "/docs"}
