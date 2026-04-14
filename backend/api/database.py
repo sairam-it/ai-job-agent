@@ -19,3 +19,4 @@ resume_collection    = db["resumes"]
 companies_collection = db["companies"]
 jobs_collection      = db["jobs"]
 shortlist_collection = db["shortlist"]
+scraped_jobs_collection = db["scraped_jobs"]   # ← new
