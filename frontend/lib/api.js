@@ -4,7 +4,6 @@ const BASE_URL = 'http://localhost:8000'
 
 function getToken() {
   if (typeof window === 'undefined') return null
-  // ── Token lives in sessionStorage (expires on tab close) ──
   return sessionStorage.getItem('aija_session_token')
 }
 
@@ -12,6 +11,8 @@ function authHeaders() {
   const token = getToken()
   return token ? { Authorization: `Bearer ${token}` } : {}
 }
+
+// ── Resume ────────────────────────────────────────────────
 
 export async function uploadResume(file) {
   const formData = new FormData()
@@ -33,8 +34,15 @@ export async function getProfile(userId) {
   return res.json()
 }
 
-export async function getSavedCompanies(userId) {
-  const res = await fetch(`${BASE_URL}/api/resume/${userId}/companies`, {
+// ── Companies ─────────────────────────────────────────────
+
+export async function getUserCompanies(userId) {
+  /**
+   * GET /api/companies/{user_id}
+   * Returns: { selected_companies, custom_companies_list, hidden_companies }
+   * Called on /companies page mount to restore previous state.
+   */
+  const res = await fetch(`${BASE_URL}/api/companies/${userId}`, {
     headers: authHeaders()
   })
   if (!res.ok) throw new Error(await res.text())
@@ -42,6 +50,10 @@ export async function getSavedCompanies(userId) {
 }
 
 export async function selectCompanies(userId, companies) {
+  /**
+   * POST /api/companies/select
+   * Saves selected companies. Auto-detects and stores custom ones.
+   */
   const res = await fetch(`${BASE_URL}/api/companies/select`, {
     method : 'POST',
     headers: { 'Content-Type': 'application/json', ...authHeaders() },
@@ -50,6 +62,23 @@ export async function selectCompanies(userId, companies) {
   if (!res.ok) throw new Error(await res.text())
   return res.json()
 }
+
+export async function deleteCompany(userId, companyName) {
+  /**
+   * DELETE /api/companies/{user_id}/{company_name}
+   * Hides company from user's view permanently.
+   * Encoded to handle spaces and special chars in company names.
+   */
+  const encoded = encodeURIComponent(companyName)
+  const res = await fetch(`${BASE_URL}/api/companies/${userId}/${encoded}`, {
+    method : 'DELETE',
+    headers: authHeaders()
+  })
+  if (!res.ok) throw new Error(await res.text())
+  return res.json()
+}
+
+// ── Jobs ──────────────────────────────────────────────────
 
 export async function scrapeJobs(userId) {
   const res = await fetch(`${BASE_URL}/api/jobs/scrape`, {

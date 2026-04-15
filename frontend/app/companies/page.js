@@ -3,14 +3,19 @@
 import { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { Search, Check, X, Loader2, Plus } from 'lucide-react'
+import { Search, X, Loader2, Plus, Trash2 } from 'lucide-react'
 import { Navbar } from '@/components/Navbar'
 import { ProgressBar } from '@/components/ProgressBar'
 import { useApp } from '@/lib/context/AppContext'
 import { useToast } from '@/components/ToastProvider'
-import { selectCompanies, scrapeJobs } from '@/lib/api'
+import { 
+  getUserCompanies, 
+  selectCompanies, 
+  scrapeJobs, 
+  deleteCompany 
+} from '@/lib/api'
 
-const companiesList = [
+const COMPANIES_LIST = [
   { name: "Google", industry: "Technology", color: "bg-blue-500" },
   { name: "Microsoft", industry: "Technology", color: "bg-green-500" },
   { name: "Amazon", industry: "E-Commerce/Cloud", color: "bg-orange-500" },
@@ -34,6 +39,8 @@ const companiesList = [
   { name: "Zoho", industry: "SaaS", color: "bg-orange-600" },
 ]
 
+const KNOWN_NAMES = new Set(COMPANIES_LIST.map(c => c.name))
+
 const loadingMessages = [
   "Searching career pages...",
   "Scraping job listings with AI...",
@@ -44,19 +51,54 @@ const loadingMessages = [
 
 export default function CompaniesPage() {
   const router = useRouter()
-  const { user_id, setCompanies, setJobsCount, isLoading: contextLoading } = useApp()
+  const { user_id, setCompanies: setContextCompanies, setJobsCount, isLoading: contextLoading } = useApp()
   const toast = useToast()
 
-  const [searchQuery, setSearchQuery] = useState('')
+  // ── Core State ────────────────────────────────────────
+  const [allCompanies, setAllCompanies] = useState(COMPANIES_LIST)
   const [selectedCompanies, setSelectedCompanies] = useState([])
+  const [hiddenCompanies, setHiddenCompanies] = useState([])
+  
+  // ── UI State ──────────────────────────────────────────
+  const [searchQuery, setSearchQuery] = useState('')
   const [isProcessing, setIsProcessing] = useState(false)
   const [loadingMessageIndex, setLoadingMessageIndex] = useState(0)
   const [showDropdown, setShowDropdown] = useState(false)
+  const [initialising, setInitialising] = useState(true)
   const searchRef = useRef(null)
 
-  // Redirect if no user_id
+  // ── Restore State from MongoDB ────────────────────────
   useEffect(() => {
-    if (!contextLoading && !user_id) {
+    if (!contextLoading && user_id) {
+      async function restoreState() {
+        try {
+          const data = await getUserCompanies(user_id)
+          const customFromDB = (data.custom_companies_list || []).filter(c => !KNOWN_NAMES.has(c.name))
+          
+          const merged = [
+            ...COMPANIES_LIST,
+            ...customFromDB.map(c => ({
+              name: c.name,
+              industry: c.industry || "Custom",
+              color: "bg-slate-600",
+              isCustom: true
+            }))
+          ]
+
+          const hidden = data.hidden_companies || []
+          setHiddenCompanies(hidden)
+          setAllCompanies(merged.filter(c => !hidden.includes(c.name)))
+          
+          const prevSelected = (data.selected_companies || []).filter(name => !hidden.includes(name))
+          setSelectedCompanies(prevSelected)
+        } catch (err) {
+          console.error('Failed to restore state:', err)
+        } finally {
+          setInitialising(false)
+        }
+      }
+      restoreState()
+    } else if (!contextLoading && !user_id) {
       router.push('/upload')
     }
   }, [user_id, contextLoading, router])
@@ -64,15 +106,13 @@ export default function CompaniesPage() {
   // Handle outside click for dropdown
   useEffect(() => {
     function handleClickOutside(e) {
-      if (searchRef.current && !searchRef.current.contains(e.target)) {
-        setShowDropdown(false)
-      }
+      if (searchRef.current && !searchRef.current.contains(e.target)) setShowDropdown(false)
     }
     document.addEventListener('mousedown', handleClickOutside)
     return () => document.removeEventListener('mousedown', handleClickOutside)
   }, [])
 
-  // Cycle through loading messages
+  // Cycle loading messages
   useEffect(() => {
     if (isProcessing) {
       const interval = setInterval(() => {
@@ -82,64 +122,71 @@ export default function CompaniesPage() {
     }
   }, [isProcessing])
 
-  // Filter Logic
+  // ── Logic Helpers ─────────────────────────────────────
   const trimmedQuery = searchQuery.trim()
-  const filteredCompanies = companiesList.filter(company =>
-    company.name.toLowerCase().includes(trimmedQuery.toLowerCase()) &&
-    !selectedCompanies.includes(company.name)
+  const filteredCompanies = allCompanies.filter(c => 
+    c.name.toLowerCase().includes(trimmedQuery.toLowerCase()) && 
+    !selectedCompanies.includes(c.name) &&
+    !hiddenCompanies.includes(c.name)
   )
 
-  const isCustom = trimmedQuery.length >= 2 &&
-    !companiesList.some(c => c.name.toLowerCase() === trimmedQuery.toLowerCase()) &&
+  const isCustomInput = trimmedQuery.length >= 2 && 
+    !allCompanies.some(c => c.name.toLowerCase() === trimmedQuery.toLowerCase()) &&
     !selectedCompanies.includes(trimmedQuery)
 
-  const toggleCompany = (companyName) => {
-    setSelectedCompanies(prev =>
-      prev.includes(companyName)
-        ? prev.filter(c => c !== companyName)
-        : [...prev, companyName]
-    )
+  const toggleCompany = (name) => {
+    setSelectedCompanies(prev => prev.includes(name) ? prev.filter(c => c !== name) : [...prev, name])
     setSearchQuery('')
     setShowDropdown(false)
   }
 
   const addCustomCompany = () => {
     if (!trimmedQuery || selectedCompanies.includes(trimmedQuery)) return
+    if (!allCompanies.some(c => c.name === trimmedQuery)) {
+      setAllCompanies(prev => [...prev, { name: trimmedQuery, industry: "Custom", color: "bg-slate-600", isCustom: true }])
+    }
     setSelectedCompanies(prev => [...prev, trimmedQuery])
     setSearchQuery('')
     setShowDropdown(false)
-    toast.success(`Added ${trimmedQuery} to research list`)
+    toast.success(`Added ${trimmedQuery} to list`)
+  }
+
+  const handleDeleteCompany = async (e, companyName) => {
+    e.stopPropagation()
+    try {
+      await deleteCompany(user_id, companyName)
+      setHiddenCompanies(prev => [...prev, companyName])
+      setAllCompanies(prev => prev.filter(c => c.name !== companyName))
+      setSelectedCompanies(prev => prev.filter(c => c !== companyName))
+      toast.success(`${companyName} removed`)
+    } catch (err) {
+      toast.error('Failed to remove company')
+    }
   }
 
   const handleSearch = async () => {
-    if (selectedCompanies.length === 0) {
-      toast.error('Please select at least one company')
-      return
-    }
-    
+    if (selectedCompanies.length === 0) return toast.error('Please select a company')
     setIsProcessing(true)
-
     try {
       await selectCompanies(user_id, selectedCompanies)
-      const scrapeResult = await scrapeJobs(user_id)
-      
-      if (!scrapeResult || scrapeResult.count === 0) {
-        toast.error('No jobs found. AI will attempt a broad skill search.')
+      setContextCompanies(selectedCompanies)
+      const result = await scrapeJobs(user_id)
+      if (!result || result.count === 0) {
+        toast.error('No jobs found. Try a broader search.')
         setIsProcessing(false)
         return
       }
-
-      setCompanies(selectedCompanies)
-      setJobsCount(scrapeResult.count || 0)
-      toast.success('Research completed successfully!')
+      setJobsCount(result.count || 0)
+      toast.success('Research completed!')
       router.push('/jobs')
     } catch (err) {
-      toast.error(err.message || 'Research failed. Please try again.')
+      toast.error('Research failed. Please try again.')
       setIsProcessing(false)
     }
   }
 
-  if (contextLoading) {
+  // ── Render Logic ──────────────────────────────────────
+  if (initialising || contextLoading) {
     return (
       <div className="min-h-screen bg-[#0F172A] flex items-center justify-center">
         <Loader2 className="w-8 h-8 text-[#7C3AED] animate-spin" />
@@ -152,6 +199,7 @@ export default function CompaniesPage() {
       <Navbar />
       <ProgressBar currentStep={2} />
 
+      {/* Original Loading Overlay */}
       {isProcessing && (
         <div className="fixed inset-0 bg-[#0F172A]/95 z-50 flex flex-col items-center justify-center">
           <div className="text-center max-w-md px-4">
@@ -174,7 +222,7 @@ export default function CompaniesPage() {
           <p className="text-[#94A3B8] text-lg">Choose companies to research — or type any name to add it</p>
         </div>
 
-        {/* Dynamic Search Bar with Dropdown */}
+        {/* Dynamic Search Bar */}
         <div className="relative max-w-xl mx-auto mb-6" ref={searchRef}>
           <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-[#64748B]" />
           <input
@@ -188,7 +236,7 @@ export default function CompaniesPage() {
 
           {showDropdown && (trimmedQuery.length > 0 || filteredCompanies.length > 0) && (
             <div className="absolute top-full left-0 right-0 mt-2 bg-[#1E293B] border border-[#334155] rounded-xl z-50 overflow-hidden shadow-2xl max-h-64 overflow-y-auto">
-              {filteredCompanies.map(company => (
+              {filteredCompanies.slice(0, 8).map(company => (
                 <button
                   key={company.name}
                   onClick={() => toggleCompany(company.name)}
@@ -204,7 +252,7 @@ export default function CompaniesPage() {
                 </button>
               ))}
               
-              {isCustom && (
+              {isCustomInput && (
                 <button
                   onClick={addCustomCompany}
                   className="w-full flex items-center gap-3 px-4 py-3 hover:bg-[#7C3AED]/10 transition-colors"
@@ -229,35 +277,45 @@ export default function CompaniesPage() {
           )}
         </div>
 
-        {/* Company Grid (Filtered by what's NOT selected) */}
+        {/* Company Grid */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-          {companiesList.filter(c => !selectedCompanies.includes(c.name)).slice(0, 8).map((company) => (
-            <button
-              key={company.name}
-              onClick={() => toggleCompany(company.name)}
-              className="p-5 rounded-xl text-left bg-[#1E293B] border border-[#334155] hover:border-[#7C3AED] hover:-translate-y-0.5 transition-all"
-            >
-              <div className={`w-10 h-10 ${company.color} rounded-full flex items-center justify-center text-white font-bold mb-3`}>
-                {company.name[0]}
-              </div>
-              <p className="text-white font-bold">{company.name}</p>
-              <p className="text-[#64748B] text-xs mt-1">{company.industry}</p>
-            </button>
+          {allCompanies.filter(c => !selectedCompanies.includes(c.name)).slice(0, 12).map((company) => (
+            <div key={company.name} className="relative group">
+              <button
+                onClick={() => toggleCompany(company.name)}
+                className="w-full p-5 rounded-xl text-left bg-[#1E293B] border border-[#334155] hover:border-[#7C3AED] hover:-translate-y-0.5 transition-all"
+              >
+                <div className={`w-10 h-10 ${company.color} rounded-full flex items-center justify-center text-white font-bold mb-3`}>
+                  {company.name[0]}
+                </div>
+                <p className="text-white font-bold">{company.name}</p>
+                <p className="text-[#64748B] text-xs mt-1">{company.isCustom ? "Custom" : company.industry}</p>
+              </button>
+              
+              <button
+                onClick={(e) => handleDeleteCompany(e, company.name)}
+                className="absolute top-3 right-3 p-1.5 bg-red-500/10 text-red-400 rounded-lg opacity-0 group-hover:opacity-100 transition-all hover:bg-red-500 hover:text-white"
+              >
+                <Trash2 size={14} />
+              </button>
+            </div>
           ))}
         </div>
 
         {/* Selected Companies Strip */}
-        <div className="bg-[#1E293B] rounded-xl p-4 mb-8">
-          <p className="text-[#94A3B8] text-sm mb-3 font-semibold uppercase tracking-wider">Research Queue</p>
-          <div className="flex flex-wrap gap-2">
-            {selectedCompanies.map(name => (
-              <span key={name} className="inline-flex items-center gap-2 px-3 py-1.5 bg-[#7C3AED] text-white rounded-full text-sm font-medium">
-                {name}
-                <X onClick={() => setSelectedCompanies(prev => prev.filter(c => c !== name))} className="w-3 h-3 cursor-pointer hover:bg-white/20 rounded-full" />
-              </span>
-            ))}
+        {selectedCompanies.length > 0 && (
+          <div className="bg-[#1E293B] rounded-xl p-4 mb-8">
+            <p className="text-[#94A3B8] text-sm mb-3 font-semibold uppercase tracking-wider">Research Queue</p>
+            <div className="flex flex-wrap gap-2">
+              {selectedCompanies.map(name => (
+                <span key={name} className="inline-flex items-center gap-2 px-3 py-1.5 bg-[#7C3AED] text-white rounded-full text-sm font-medium">
+                  {name}
+                  <X onClick={() => setSelectedCompanies(prev => prev.filter(c => c !== name))} className="w-3 h-3 cursor-pointer hover:bg-white/20 rounded-full" />
+                </span>
+              ))}
+            </div>
           </div>
-        </div>
+        )}
 
         <div className="flex items-center justify-between pt-6 border-t border-[#334155]">
           <Link href="/upload" className="px-6 py-3 text-[#94A3B8] hover:text-white transition-colors">← Back</Link>
