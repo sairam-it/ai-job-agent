@@ -10,42 +10,36 @@ import {
 } from 'lucide-react'
 import { useApp } from '@/lib/context/AppContext'
 
-// ── Inner component — uses session and search params ──────
 function AuthContent() {
   const router = useRouter()
   const { data: session, status: sessionStatus } = useSession()
   const { setUserId, setToken, setUserName } = useApp()
 
-  // ── Core mode ─────────────────────────────────────────
-  const [mode,    setMode]    = useState('signin')   // 'signin' | 'signup'
+  const [mode,    setMode]    = useState('signin')
   const [loading, setLoading] = useState(false)
   const [error,   setError]   = useState('')
 
-  // ── Password visibility ───────────────────────────────
   const [showPassword,        setShowPassword]        = useState(false)
   const [showConfirmPassword, setShowConfirmPassword] = useState(false)
 
-  // ── Sign In fields ────────────────────────────────────
   const [signInEmail,    setSignInEmail]    = useState('')
   const [signInPassword, setSignInPassword] = useState('')
 
-  // ── Sign Up fields ────────────────────────────────────
   const [signUpName,            setSignUpName]            = useState('')
   const [signUpEmail,           setSignUpEmail]           = useState('')
   const [signUpPhone,           setSignUpPhone]           = useState('')
   const [signUpPassword,        setSignUpPassword]        = useState('')
   const [signUpConfirmPassword, setSignUpConfirmPassword] = useState('')
 
-  // ── OTP state ─────────────────────────────────────────
-  const [otpSent,      setOtpSent]      = useState(false)
-  const [otpInputs,    setOtpInputs]    = useState(['', '', '', '', '', ''])
-  const [otpLoading,   setOtpLoading]   = useState(false)
-  const [pendingEmail, setPendingEmail] = useState('')
+  const [otpSent,       setOtpSent]       = useState(false)
+  const [otpInputs,     setOtpInputs]     = useState(['', '', '', '', '', ''])
+  const [otpLoading,    setOtpLoading]    = useState(false)
+  const [pendingEmail,  setPendingEmail]  = useState('')
   const [signupSuccess, setSignupSuccess] = useState(false)
+  const [rememberMe,    setRememberMe]    = useState(false)
   const otpRefs = useRef([])
 
-  // ── Google OAuth session sync ─────────────────────────
-  // When NextAuth session arrives (after Google redirect), sync to our system
+  // ── Google OAuth session sync ──────────────────────────
   useEffect(() => {
     if (sessionStatus !== 'authenticated') return
     if (!session?.user_id || !session?.customToken) return
@@ -59,14 +53,15 @@ function AuthContent() {
     setUserId(session.user_id)
     setUserName(session.userName || '')
 
+    document.cookie = `aija_has_session=true; path=/; SameSite=Lax`
+
     router.push('/')
   }, [sessionStatus, session, router, setToken, setUserId, setUserName])
 
-  // ── Read URL error params (from NextAuth redirect) ────
+  // ── URL error params ───────────────────────────────────
   useEffect(() => {
     const params   = new URLSearchParams(window.location.search)
     const urlError = params.get('error')
-
     if (urlError === 'gmail_only') {
       setError('Only @gmail.com accounts are supported for Google sign-in.')
     } else if (urlError === 'OAuthAccountNotLinked') {
@@ -76,7 +71,7 @@ function AuthContent() {
     }
   }, [])
 
-  // ── Validation helpers ────────────────────────────────
+  // ── Validation ─────────────────────────────────────────
   const validateEmail = (email) =>
     /^[^\s@]+@[^\s@]+\.[a-zA-Z]{2,}$/.test(email.trim())
 
@@ -101,13 +96,12 @@ function AuthContent() {
   const clearError = () => { if (error) setError('') }
 
   const formatApiError = (detail) => {
-    if (!detail)                  return 'An unknown error occurred.'
-    if (Array.isArray(detail))    return detail.map(i => i?.msg || String(i)).join(' | ')
+    if (!detail)                    return 'An unknown error occurred.'
+    if (Array.isArray(detail))      return detail.map(i => i?.msg || String(i)).join(' | ')
     if (typeof detail === 'object') return detail.message || detail.detail || JSON.stringify(detail)
     return String(detail)
   }
 
-  // ── Shared input style helpers ────────────────────────
   const inputBase = { backgroundColor: '#0F172A', borderColor: '#334155', color: '#F8FAFC' }
 
   const onFocusStyle = (e) => {
@@ -119,20 +113,31 @@ function AuthContent() {
     e.target.style.boxShadow   = 'none'
   }
 
-  // ── Google sign-in ────────────────────────────────────
+  // ── Task 1 Fix: Google sign-in with forced account picker ──
+  // The NextAuth config has prompt:"select_account" on the provider.
+  // BUT that alone isn't enough — the signIn() call must also pass
+  // authorizationParams to override at runtime.
+  // Without this, NextAuth may cache the OAuth state and skip the picker.
   const handleGoogleSignIn = async () => {
     setError('')
     setLoading(true)
     try {
-      // Returns to /auth after OAuth — useEffect above handles sync
-      await signIn('google', { callbackUrl: '/auth' })
+      await signIn('google', {
+        callbackUrl: '/auth',
+        // ── Force Google account selection screen every time ──
+        // This is the critical fix: passing prompt here ensures
+        // Google always shows the "Choose an account" screen,
+        // even if the user is already signed in to Google.
+      }, {
+        prompt: 'select_account'
+      })
     } catch {
       setError('Google sign-in failed. Please try again.')
       setLoading(false)
     }
   }
 
-  // ── Email/password sign-in ────────────────────────────
+  // ── Email / password sign-in ───────────────────────────
   const handleSignIn = async (e) => {
     e.preventDefault()
     setError('')
@@ -144,11 +149,17 @@ function AuthContent() {
 
     setLoading(true)
     try {
-      const res  = await fetch('http://localhost:8000/api/auth/signin', {
-        method : 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body   : JSON.stringify({ email: signInEmail.trim().toLowerCase(), password: signInPassword }),
-      })
+      const res  = await fetch(
+        `${process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:8000'}/api/auth/signin`,
+        {
+          method : 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body   : JSON.stringify({
+            email   : signInEmail.trim().toLowerCase(),
+            password: signInPassword
+          }),
+        }
+      )
       const data = await res.json()
 
       if (res.ok) {
@@ -161,8 +172,10 @@ function AuthContent() {
         setUserId(data.user_id)
         setUserName(data.name)
 
-        if (data.profile?.skills?.length > 0) {
-          // AppContext setProfile is imported via useApp if needed
+        if (rememberMe) {
+          document.cookie = `aija_has_session=true; path=/; max-age=${7 * 24 * 60 * 60}; SameSite=Lax`
+        } else {
+          document.cookie = `aija_has_session=true; path=/; SameSite=Lax`
         }
 
         router.push('/')
@@ -176,7 +189,7 @@ function AuthContent() {
     }
   }
 
-  // ── Send OTP (Step 1 of signup) ───────────────────────
+  // ── Task 2 Fix: Send OTP ───────────────────────────────
   const handleSendOtp = async (e) => {
     e.preventDefault()
     setError('')
@@ -198,6 +211,8 @@ function AuthContent() {
     }
 
     setLoading(true)
+    console.log('[Auth] Sending OTP request to /api/otp/send')
+
     try {
       const res = await fetch('/api/otp/send', {
         method : 'POST',
@@ -209,7 +224,9 @@ function AuthContent() {
           password: signUpPassword,
         }),
       })
+
       const data = await res.json()
+      console.log('[Auth] OTP send response:', res.status, data)
 
       if (res.ok) {
         setPendingEmail(signUpEmail.trim().toLowerCase())
@@ -217,28 +234,37 @@ function AuthContent() {
         if (signUpPhone.trim()) {
           localStorage.setItem('ai_job_agent_phone', signUpPhone.trim())
         }
+
+        // Task 2 Fix: In dev mode, backend returns dev_otp in response
+        // Auto-fill the OTP inputs so developers don't need to check console
+        if (data.dev_otp) {
+          console.log('[Auth] DEV MODE: OTP auto-filled from response:', data.dev_otp)
+          setOtpInputs(data.dev_otp.split(''))
+          setError(`DEV MODE: Email failed — OTP auto-filled: ${data.dev_otp}`)
+        }
+
         setOtpSent(true)
-        // Focus first OTP input after render
-        setTimeout(() => otpRefs.current[0]?.focus(), 100)
+        setTimeout(() => otpRefs.current[0]?.focus(), 150)
       } else {
-        setError(formatApiError(data.detail))
+        // Task 2 Fix: Show the specific Resend error to help debug
+        const hint = data.hint ? ` (${data.hint})` : ''
+        setError(formatApiError(data.detail) + hint)
       }
-    } catch {
-      setError('Cannot connect to server. Please try again.')
+    } catch (err) {
+      console.error('[Auth] OTP send fetch error:', err)
+      setError('Cannot connect to the verification server. Please try again.')
     } finally {
       setLoading(false)
     }
   }
 
-  // ── OTP input handlers ────────────────────────────────
+  // ── OTP input handlers ─────────────────────────────────
   const handleOtpChange = (index, value) => {
     if (!/^\d*$/.test(value)) return
-
-    const updated = [...otpInputs]
-    updated[index] = value.slice(-1)
+    const updated    = [...otpInputs]
+    updated[index]   = value.slice(-1)
     setOtpInputs(updated)
     clearError()
-
     if (value && index < 5) {
       otpRefs.current[index + 1]?.focus()
     }
@@ -259,7 +285,7 @@ function AuthContent() {
     otpRefs.current[Math.min(pasted.length, 5)]?.focus()
   }
 
-  // ── Verify OTP (Step 2 of signup) ─────────────────────
+  // ── Verify OTP ─────────────────────────────────────────
   const handleVerifyOtp = async () => {
     const otp = otpInputs.join('')
     if (otp.length !== 6) {
@@ -268,6 +294,8 @@ function AuthContent() {
 
     setOtpLoading(true)
     setError('')
+    console.log('[Auth] Verifying OTP for:', pendingEmail)
+
     try {
       const res  = await fetch('/api/otp/verify', {
         method : 'POST',
@@ -275,41 +303,40 @@ function AuthContent() {
         body   : JSON.stringify({ email: pendingEmail, otp }),
       })
       const data = await res.json()
+      console.log('[Auth] OTP verify response:', res.status, data)
 
       if (res.ok) {
         sessionStorage.setItem('aija_session_token',   data.token)
         sessionStorage.setItem('aija_session_user_id', data.user_id)
-        localStorage.setItem('ai_job_agent_name',  data.name)
+        localStorage.setItem('ai_job_agent_name', data.name)
 
         setToken(data.token)
         setUserId(data.user_id)
         setUserName(data.name)
 
+        document.cookie = `aija_has_session=true; path=/; SameSite=Lax`
+
         setSignupSuccess(true)
         setTimeout(() => router.push('/'), 1200)
       } else {
         setError(formatApiError(data.detail))
-        // Clear inputs on wrong code
-        if (res.status === 400) {
+        if (res.status === 400 || res.status === 429) {
           setOtpInputs(['', '', '', '', '', ''])
           setTimeout(() => otpRefs.current[0]?.focus(), 50)
         }
       }
-    } catch {
+    } catch (err) {
+      console.error('[Auth] OTP verify fetch error:', err)
       setError('Verification failed. Please try again.')
     } finally {
       setOtpLoading(false)
     }
   }
 
-  const handleResendOtp = async () => {
+  const handleResendOtp = () => {
+    setOtpSent(false)
     setOtpInputs(['', '', '', '', '', ''])
     setError('')
-    setOtpSent(false)
-    // Brief pause then re-send
-    setTimeout(() => {
-      setOtpSent(false)
-    }, 200)
   }
 
   const switchMode = (newMode) => {
@@ -320,8 +347,9 @@ function AuthContent() {
     setSignupSuccess(false)
   }
 
-  // ── If Google session is loading, show spinner ────────
-  if (sessionStatus === 'loading' || (sessionStatus === 'authenticated' && session?.user_id)) {
+  // ── Loading spinner while Google session resolves ──────
+  if (sessionStatus === 'loading' ||
+     (sessionStatus === 'authenticated' && session?.user_id)) {
     return (
       <div className="min-h-screen flex items-center justify-center"
         style={{ backgroundColor: '#0F172A' }}>
@@ -330,12 +358,12 @@ function AuthContent() {
     )
   }
 
+  // ── Render ─────────────────────────────────────────────
   return (
     <div
       className="min-h-screen flex items-center justify-center relative overflow-hidden"
       style={{ backgroundColor: '#0F172A' }}
     >
-      {/* Decorative glow */}
       <div
         className="hidden lg:block absolute -top-40 -left-40 w-96 h-96 pointer-events-none"
         style={{
@@ -344,7 +372,6 @@ function AuthContent() {
         }}
       />
 
-      {/* ── Auth Card ─────────────────────────────────── */}
       <div
         className="w-full max-w-md mx-4 p-8 rounded-2xl"
         style={{ backgroundColor: '#1E293B', boxShadow: '0 0 40px rgba(124,58,237,0.15)' }}
@@ -356,12 +383,10 @@ function AuthContent() {
             <h1 className="text-2xl font-bold" style={{ color: '#F8FAFC' }}>AI Job Agent</h1>
           </div>
 
-          {/* Only show tabs when not in OTP flow */}
           {!otpSent && (
             <div className="flex gap-3 rounded-lg p-1" style={{ backgroundColor: '#0F172A' }}>
               {['signin', 'signup'].map(tab => (
-                <button
-                  key={tab}
+                <button key={tab}
                   onClick={() => switchMode(tab)}
                   className="flex-1 py-2 px-4 rounded-lg font-medium transition-all duration-200"
                   style={{
@@ -396,14 +421,11 @@ function AuthContent() {
           </div>
         )}
 
-        {/* ══════════════════════════════════════════════
-            OTP VERIFICATION SCREEN
-        ══════════════════════════════════════════════ */}
+        {/* ── OTP Screen ─────────────────────────────── */}
         {otpSent && !signupSuccess && (
           <div>
-            {/* Back button */}
             <button
-              onClick={() => { setOtpSent(false); setOtpInputs(['', '', '', '', '', '']); setError('') }}
+              onClick={() => { setOtpSent(false); setOtpInputs(['','','','','','']); setError('') }}
               className="flex items-center gap-1.5 mb-6 text-sm transition-colors"
               style={{ color: '#94A3B8' }}
               onMouseEnter={e => e.currentTarget.style.color = '#F8FAFC'}
@@ -425,7 +447,7 @@ function AuthContent() {
               </p>
             </div>
 
-            {/* 6-digit OTP inputs */}
+            {/* OTP inputs */}
             <div className="flex gap-3 justify-center mb-6">
               {otpInputs.map((digit, i) => (
                 <input
@@ -458,7 +480,6 @@ function AuthContent() {
               ))}
             </div>
 
-            {/* Verify button */}
             <button
               onClick={handleVerifyOtp}
               disabled={otpLoading || otpInputs.join('').length !== 6}
@@ -475,27 +496,20 @@ function AuthContent() {
               }
             </button>
 
-            {/* Resend link */}
             <p className="text-center" style={{ color: '#94A3B8', fontSize: '14px' }}>
               Didn&apos;t receive it?{' '}
-              <button
-                onClick={handleResendOtp}
-                className="font-medium hover:underline transition-colors"
-                style={{ color: '#7C3AED' }}
-              >
+              <button onClick={handleResendOtp} className="font-medium hover:underline"
+                style={{ color: '#7C3AED' }}>
                 Resend code
               </button>
             </p>
-
             <p className="text-center mt-2" style={{ color: '#475569', fontSize: '12px' }}>
               Code expires in 10 minutes
             </p>
           </div>
         )}
 
-        {/* ══════════════════════════════════════════════
-            SIGN IN FORM
-        ══════════════════════════════════════════════ */}
+        {/* ── Sign In ─────────────────────────────────── */}
         {mode === 'signin' && !otpSent && (
           <div>
             <div className="mb-6">
@@ -507,7 +521,6 @@ function AuthContent() {
               </p>
             </div>
 
-            {/* Google button */}
             <button
               onClick={handleGoogleSignIn}
               disabled={loading}
@@ -518,16 +531,10 @@ function AuthContent() {
             >
               {loading
                 ? <Loader2 size={18} className="animate-spin" style={{ color: '#94A3B8' }} />
-                : (
-                  <>
-                    <GoogleIcon />
-                    Continue with Google
-                  </>
-                )
+                : <><GoogleIcon /> Continue with Google</>
               }
             </button>
 
-            {/* Divider */}
             <div className="flex items-center gap-3 mb-4">
               <div className="flex-1 h-px" style={{ backgroundColor: '#334155' }} />
               <span style={{ color: '#475569', fontSize: '12px' }}>or sign in with email</span>
@@ -535,7 +542,6 @@ function AuthContent() {
             </div>
 
             <form onSubmit={handleSignIn} className="space-y-4">
-              {/* Email */}
               <div>
                 <label className="block text-sm font-medium mb-2" style={{ color: '#F8FAFC' }}>
                   Email address
@@ -543,8 +549,7 @@ function AuthContent() {
                 <div className="relative">
                   <Mail size={18} className="absolute left-3 top-1/2 -translate-y-1/2"
                     style={{ color: '#94A3B8' }} />
-                  <input
-                    type="email" placeholder="you@example.com"
+                  <input type="email" placeholder="you@example.com"
                     value={signInEmail} required
                     onChange={e => { setSignInEmail(e.target.value); clearError() }}
                     onFocus={onFocusStyle} onBlur={onBlurStyle}
@@ -559,7 +564,6 @@ function AuthContent() {
                 )}
               </div>
 
-              {/* Password */}
               <div>
                 <label className="block text-sm font-medium mb-2" style={{ color: '#F8FAFC' }}>
                   Password
@@ -567,8 +571,7 @@ function AuthContent() {
                 <div className="relative">
                   <Lock size={18} className="absolute left-3 top-1/2 -translate-y-1/2"
                     style={{ color: '#94A3B8' }} />
-                  <input
-                    type={showPassword ? 'text' : 'password'}
+                  <input type={showPassword ? 'text' : 'password'}
                     placeholder="Enter your password"
                     value={signInPassword} required
                     onChange={e => { setSignInPassword(e.target.value); clearError() }}
@@ -584,18 +587,28 @@ function AuthContent() {
                 </div>
               </div>
 
-              <div className="text-right">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <input type="checkbox" id="remember-me"
+                    checked={rememberMe}
+                    onChange={e => setRememberMe(e.target.checked)}
+                    className="w-4 h-4 rounded cursor-pointer"
+                    style={{ accentColor: '#7C3AED' }}
+                  />
+                  <label htmlFor="remember-me" className="text-sm cursor-pointer select-none"
+                    style={{ color: '#94A3B8' }}>
+                    Remember me for 7 days
+                  </label>
+                </div>
                 <a href="#" onClick={e => e.preventDefault()}
                   className="text-sm" style={{ color: '#7C3AED' }}>
                   Forgot password?
                 </a>
               </div>
 
-              <button
-                type="submit" disabled={loading}
+              <button type="submit" disabled={loading}
                 className="w-full h-11 rounded-lg font-medium text-white flex items-center justify-center gap-2 transition-all duration-200"
-                style={{ backgroundColor: '#7C3AED', opacity: loading ? 0.7 : 1 }}
-              >
+                style={{ backgroundColor: '#7C3AED', opacity: loading ? 0.7 : 1 }}>
                 {loading
                   ? <><Loader2 size={18} className="animate-spin" /> Signing in...</>
                   : 'Sign In →'
@@ -613,9 +626,7 @@ function AuthContent() {
           </div>
         )}
 
-        {/* ══════════════════════════════════════════════
-            SIGN UP FORM
-        ══════════════════════════════════════════════ */}
+        {/* ── Sign Up ─────────────────────────────────── */}
         {mode === 'signup' && !otpSent && (
           <div>
             <div className="mb-6">
@@ -627,7 +638,6 @@ function AuthContent() {
               </p>
             </div>
 
-            {/* Google button */}
             <button
               onClick={handleGoogleSignIn}
               disabled={loading}
@@ -642,7 +652,6 @@ function AuthContent() {
               }
             </button>
 
-            {/* Divider */}
             <div className="flex items-center gap-3 mb-4">
               <div className="flex-1 h-px" style={{ backgroundColor: '#334155' }} />
               <span style={{ color: '#475569', fontSize: '12px' }}>or sign up with email</span>
@@ -658,8 +667,7 @@ function AuthContent() {
                 <div className="relative">
                   <User size={18} className="absolute left-3 top-1/2 -translate-y-1/2"
                     style={{ color: '#94A3B8' }} />
-                  <input
-                    type="text" placeholder="Siddeshwar Goud Palle"
+                  <input type="text" placeholder="Siddeshwar Goud Palle"
                     value={signUpName} required
                     onChange={e => { setSignUpName(e.target.value); clearError() }}
                     onFocus={onFocusStyle} onBlur={onBlurStyle}
@@ -677,8 +685,7 @@ function AuthContent() {
                 <div className="relative">
                   <Mail size={18} className="absolute left-3 top-1/2 -translate-y-1/2"
                     style={{ color: '#94A3B8' }} />
-                  <input
-                    type="email" placeholder="you@example.com"
+                  <input type="email" placeholder="you@example.com"
                     value={signUpEmail} required
                     onChange={e => { setSignUpEmail(e.target.value); clearError() }}
                     onFocus={onFocusStyle} onBlur={onBlurStyle}
@@ -702,8 +709,7 @@ function AuthContent() {
                 <div className="relative">
                   <Phone size={18} className="absolute left-3 top-1/2 -translate-y-1/2"
                     style={{ color: '#94A3B8' }} />
-                  <input
-                    type="tel" placeholder="+91 98765 43210"
+                  <input type="tel" placeholder="+91 98765 43210"
                     value={signUpPhone}
                     onChange={e => { setSignUpPhone(e.target.value); clearError() }}
                     onFocus={onFocusStyle} onBlur={onBlurStyle}
@@ -726,8 +732,7 @@ function AuthContent() {
                 <div className="relative mb-2">
                   <Lock size={18} className="absolute left-3 top-1/2 -translate-y-1/2"
                     style={{ color: '#94A3B8' }} />
-                  <input
-                    type={showPassword ? 'text' : 'password'}
+                  <input type={showPassword ? 'text' : 'password'}
                     placeholder="Create a strong password"
                     value={signUpPassword} required
                     onChange={e => { setSignUpPassword(e.target.value); clearError() }}
@@ -741,7 +746,6 @@ function AuthContent() {
                     {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
                   </button>
                 </div>
-                {/* Strength bar */}
                 <div className="flex gap-1">
                   {[1, 2, 3, 4].map(i => (
                     <div key={i}
@@ -762,8 +766,7 @@ function AuthContent() {
                 <div className="relative">
                   <Lock size={18} className="absolute left-3 top-1/2 -translate-y-1/2"
                     style={{ color: '#94A3B8' }} />
-                  <input
-                    type={showConfirmPassword ? 'text' : 'password'}
+                  <input type={showConfirmPassword ? 'text' : 'password'}
                     placeholder="Repeat your password"
                     value={signUpConfirmPassword} required
                     onChange={e => { setSignUpConfirmPassword(e.target.value); clearError() }}
@@ -796,11 +799,9 @@ function AuthContent() {
                 )}
               </div>
 
-              <button
-                type="submit" disabled={loading}
+              <button type="submit" disabled={loading}
                 className="w-full h-11 rounded-lg font-medium text-white flex items-center justify-center gap-2 transition-all duration-200"
-                style={{ backgroundColor: '#7C3AED', opacity: loading ? 0.7 : 1 }}
-              >
+                style={{ backgroundColor: '#7C3AED', opacity: loading ? 0.7 : 1 }}>
                 {loading
                   ? <><Loader2 size={18} className="animate-spin" /> Sending code...</>
                   : 'Send Verification Code →'
@@ -822,7 +823,6 @@ function AuthContent() {
   )
 }
 
-// ── Google SVG icon (inline — no external dependency) ─────
 function GoogleIcon() {
   return (
     <svg width="18" height="18" viewBox="0 0 24 24">
@@ -834,7 +834,6 @@ function GoogleIcon() {
   )
 }
 
-// ── Page export wrapped in Suspense (required for App Router) ──
 export default function AuthPage() {
   return (
     <Suspense

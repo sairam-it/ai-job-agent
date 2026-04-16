@@ -109,6 +109,9 @@ export function AppProvider({ children }) {
     localStorage.removeItem(STORAGE_KEYS.NAME)
     // Keep EMAIL, PHONE, LAST_SIGNOUT for dropdown display on next login
 
+    // ── Task 1: Clear session indicator cookie ────────────
+    document.cookie = 'aija_has_session=; path=/; max-age=0; SameSite=Lax'
+
     setUserIdState(null)
     setTokenState(null)
     setUserName(null)

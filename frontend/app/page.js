@@ -115,8 +115,17 @@ export default function LandingPage() {
     document.getElementById('how-it-works')?.scrollIntoView({ behavior: 'smooth' })
   }
 
-  const handleGetStarted = () => router.push(user_id ? '/upload' : '/auth')
-  const handleUploadResume = () => router.push(user_id ? '/upload' : '/auth')
+  const handleGetStarted = () => router.push('/auth')
+  const handleUploadResume = () => router.push('/auth')
+
+  // const handleGetStarted = () => {
+  //   router.push('/auth')
+  // }
+
+  // const handleUploadResume = () => {
+  //   router.push('/auth')
+  // }
+
 
   const handleSignOut = () => {
     setDropdownOpen(false)
