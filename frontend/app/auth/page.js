@@ -3,21 +3,24 @@
 
 import { useState, useEffect, useRef, Suspense } from 'react'
 import { useRouter } from 'next/navigation'
-import { signIn, useSession } from 'next-auth/react'
+import { signIn, signOut, useSession } from 'next-auth/react'
 import {
   Mail, Lock, Eye, EyeOff, User, Phone,
   AlertCircle, Zap, Loader2, CheckCircle2, ArrowLeft
 } from 'lucide-react'
 import { useApp } from '@/lib/context/AppContext'
+import { STORAGE_KEYS } from '@/lib/context/AppContext'
 
 function AuthContent() {
   const router = useRouter()
   const { data: session, status: sessionStatus } = useSession()
   const { setUserId, setToken, setUserName } = useApp()
 
-  const [mode,    setMode]    = useState('signin')
-  const [loading, setLoading] = useState(false)
-  const [error,   setError]   = useState('')
+  const [mode,          setMode]          = useState('signin')
+  const [loading,       setLoading]       = useState(false)
+  const [error,         setError]         = useState('')
+  const [rememberMe,    setRememberMe]    = useState(false)
+  const [signupSuccess, setSignupSuccess] = useState(false)
 
   const [showPassword,        setShowPassword]        = useState(false)
   const [showConfirmPassword, setShowConfirmPassword] = useState(false)
@@ -31,34 +34,30 @@ function AuthContent() {
   const [signUpPassword,        setSignUpPassword]        = useState('')
   const [signUpConfirmPassword, setSignUpConfirmPassword] = useState('')
 
-  const [otpSent,       setOtpSent]       = useState(false)
-  const [otpInputs,     setOtpInputs]     = useState(['', '', '', '', '', ''])
-  const [otpLoading,    setOtpLoading]    = useState(false)
-  const [pendingEmail,  setPendingEmail]  = useState('')
-  const [signupSuccess, setSignupSuccess] = useState(false)
-  const [rememberMe,    setRememberMe]    = useState(false)
+  const [otpSent,      setOtpSent]      = useState(false)
+  const [otpInputs,    setOtpInputs]    = useState(['','','','','',''])
+  const [otpLoading,   setOtpLoading]   = useState(false)
+  const [pendingEmail, setPendingEmail] = useState('')
   const otpRefs = useRef([])
 
-  // ── Google OAuth session sync ──────────────────────────
+  // ── On mount: clear stale NextAuth sessions ───────────────
+  // When user explicitly signs out, clearSession() sets FORCE_REAUTH.
+  // If they return to /auth with a stale NextAuth cookie, we clear it
+  // so Google account picker shows fresh, not the previous account.
   useEffect(() => {
-    if (sessionStatus !== 'authenticated') return
-    if (!session?.user_id || !session?.customToken) return
+    if (typeof window === 'undefined') return
+    if (sessionStatus === 'loading') return
 
-    sessionStorage.setItem('aija_session_token',   session.customToken)
-    sessionStorage.setItem('aija_session_user_id', session.user_id)
-    localStorage.setItem('ai_job_agent_name',  session.userName  || '')
-    localStorage.setItem('ai_job_agent_email', session.userEmail || '')
+    const forceReauth = localStorage.getItem(STORAGE_KEYS.FORCE_REAUTH)
 
-    setToken(session.customToken)
-    setUserId(session.user_id)
-    setUserName(session.userName || '')
+    if (sessionStatus === 'authenticated' && forceReauth === 'true') {
+      console.log('[Auth] Force reauth flag found — clearing stale NextAuth session')
+      localStorage.removeItem(STORAGE_KEYS.FORCE_REAUTH)
+      signOut({ redirect: false })
+    }
+  }, [sessionStatus])
 
-    document.cookie = `aija_has_session=true; path=/; SameSite=Lax`
-
-    router.push('/')
-  }, [sessionStatus, session, router, setToken, setUserId, setUserName])
-
-  // ── URL error params ───────────────────────────────────
+  // ── URL error params ───────────────────────────────────────
   useEffect(() => {
     const params   = new URLSearchParams(window.location.search)
     const urlError = params.get('error')
@@ -71,7 +70,7 @@ function AuthContent() {
     }
   }, [])
 
-  // ── Validation ─────────────────────────────────────────
+  // ── Validation ─────────────────────────────────────────────
   const validateEmail = (email) =>
     /^[^\s@]+@[^\s@]+\.[a-zA-Z]{2,}$/.test(email.trim())
 
@@ -91,9 +90,8 @@ function AuthContent() {
   }
 
   const passwordStrength = calculatePasswordStrength(signUpPassword)
-  const strengthColors   = ['bg-gray-300', 'bg-red-500', 'bg-amber-500', 'bg-blue-500', 'bg-green-500']
-
-  const clearError = () => { if (error) setError('') }
+  const strengthColors   = ['bg-gray-300','bg-red-500','bg-amber-500','bg-blue-500','bg-green-500']
+  const clearError       = () => { if (error) setError('') }
 
   const formatApiError = (detail) => {
     if (!detail)                    return 'An unknown error occurred.'
@@ -113,31 +111,37 @@ function AuthContent() {
     e.target.style.boxShadow   = 'none'
   }
 
-  // ── Task 1 Fix: Google sign-in with forced account picker ──
-  // The NextAuth config has prompt:"select_account" on the provider.
-  // BUT that alone isn't enough — the signIn() call must also pass
-  // authorizationParams to override at runtime.
-  // Without this, NextAuth may cache the OAuth state and skip the picker.
+  // ── Google Sign-In ────────────────────────────────────────
+  // callbackUrl: '/' — OAuth lands on landing page, NOT /auth.
+  // page.js handles the session sync there.
+  // This eliminates the signInInitiated ref problem entirely:
+  // auth/page.js never needs to detect OAuth returning to it.
   const handleGoogleSignIn = async () => {
     setError('')
     setLoading(true)
     try {
-      await signIn('google', {
-        callbackUrl: '/auth',
-        // ── Force Google account selection screen every time ──
-        // This is the critical fix: passing prompt here ensures
-        // Google always shows the "Choose an account" screen,
-        // even if the user is already signed in to Google.
-      }, {
+      // Clear FORCE_REAUTH before new sign-in so page.js
+      // doesn't mistakenly treat the fresh session as stale.
+      localStorage.removeItem(STORAGE_KEYS.FORCE_REAUTH)
+
+      // Clear any existing NextAuth session first so Google
+      // cannot silently reuse it. signOut({ redirect: false })
+      // only deletes the next-auth.session-token cookie.
+      await signOut({ redirect: false })
+
+      // Start OAuth. callbackUrl:'/' means Google redirects to
+      // landing page after auth. page.js syncs the session there.
+      await signIn('google', { callbackUrl: '/' }, {
         prompt: 'select_account'
       })
-    } catch {
+    } catch (err) {
+      console.error('[Auth] Google sign-in error:', err)
       setError('Google sign-in failed. Please try again.')
       setLoading(false)
     }
   }
 
-  // ── Email / password sign-in ───────────────────────────
+  // ── Email / password sign-in ──────────────────────────────
   const handleSignIn = async (e) => {
     e.preventDefault()
     setError('')
@@ -149,14 +153,14 @@ function AuthContent() {
 
     setLoading(true)
     try {
-      const res  = await fetch(
+      const res = await fetch(
         `${process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:8000'}/api/auth/signin`,
         {
           method : 'POST',
           headers: { 'Content-Type': 'application/json' },
           body   : JSON.stringify({
             email   : signInEmail.trim().toLowerCase(),
-            password: signInPassword
+            password: signInPassword,
           }),
         }
       )
@@ -167,6 +171,9 @@ function AuthContent() {
         sessionStorage.setItem('aija_session_user_id', data.user_id)
         localStorage.setItem('ai_job_agent_name',  data.name)
         localStorage.setItem('ai_job_agent_email', signInEmail.trim().toLowerCase())
+
+        // Clear force-reauth flag on successful login
+        localStorage.removeItem(STORAGE_KEYS.FORCE_REAUTH)
 
         setToken(data.token)
         setUserId(data.user_id)
@@ -189,7 +196,7 @@ function AuthContent() {
     }
   }
 
-  // ── Task 2 Fix: Send OTP ───────────────────────────────
+  // ── Send OTP ───────────────────────────────────────────────
   const handleSendOtp = async (e) => {
     e.preventDefault()
     setError('')
@@ -211,8 +218,6 @@ function AuthContent() {
     }
 
     setLoading(true)
-    console.log('[Auth] Sending OTP request to /api/otp/send')
-
     try {
       const res = await fetch('/api/otp/send', {
         method : 'POST',
@@ -224,9 +229,7 @@ function AuthContent() {
           password: signUpPassword,
         }),
       })
-
       const data = await res.json()
-      console.log('[Auth] OTP send response:', res.status, data)
 
       if (res.ok) {
         setPendingEmail(signUpEmail.trim().toLowerCase())
@@ -235,39 +238,34 @@ function AuthContent() {
           localStorage.setItem('ai_job_agent_phone', signUpPhone.trim())
         }
 
-        // Task 2 Fix: In dev mode, backend returns dev_otp in response
-        // Auto-fill the OTP inputs so developers don't need to check console
         if (data.dev_otp) {
-          console.log('[Auth] DEV MODE: OTP auto-filled from response:', data.dev_otp)
+          console.warn('[Auth] DEV OTP:', data.dev_otp)
           setOtpInputs(data.dev_otp.split(''))
-          setError(`DEV MODE: Email failed — OTP auto-filled: ${data.dev_otp}`)
+          setError(`DEV MODE: OTP auto-filled: ${data.dev_otp}`)
         }
 
         setOtpSent(true)
         setTimeout(() => otpRefs.current[0]?.focus(), 150)
       } else {
-        // Task 2 Fix: Show the specific Resend error to help debug
-        const hint = data.hint ? ` (${data.hint})` : ''
+        const hint = data.hint ? ` — ${data.hint}` : ''
         setError(formatApiError(data.detail) + hint)
       }
     } catch (err) {
-      console.error('[Auth] OTP send fetch error:', err)
+      console.error('[Auth] OTP send error:', err)
       setError('Cannot connect to the verification server. Please try again.')
     } finally {
       setLoading(false)
     }
   }
 
-  // ── OTP input handlers ─────────────────────────────────
+  // ── OTP input handlers ─────────────────────────────────────
   const handleOtpChange = (index, value) => {
     if (!/^\d*$/.test(value)) return
-    const updated    = [...otpInputs]
-    updated[index]   = value.slice(-1)
+    const updated  = [...otpInputs]
+    updated[index] = value.slice(-1)
     setOtpInputs(updated)
     clearError()
-    if (value && index < 5) {
-      otpRefs.current[index + 1]?.focus()
-    }
+    if (value && index < 5) otpRefs.current[index + 1]?.focus()
   }
 
   const handleOtpKeyDown = (index, e) => {
@@ -285,7 +283,7 @@ function AuthContent() {
     otpRefs.current[Math.min(pasted.length, 5)]?.focus()
   }
 
-  // ── Verify OTP ─────────────────────────────────────────
+  // ── Verify OTP ─────────────────────────────────────────────
   const handleVerifyOtp = async () => {
     const otp = otpInputs.join('')
     if (otp.length !== 6) {
@@ -294,7 +292,6 @@ function AuthContent() {
 
     setOtpLoading(true)
     setError('')
-    console.log('[Auth] Verifying OTP for:', pendingEmail)
 
     try {
       const res  = await fetch('/api/otp/verify', {
@@ -303,12 +300,13 @@ function AuthContent() {
         body   : JSON.stringify({ email: pendingEmail, otp }),
       })
       const data = await res.json()
-      console.log('[Auth] OTP verify response:', res.status, data)
 
       if (res.ok) {
         sessionStorage.setItem('aija_session_token',   data.token)
         sessionStorage.setItem('aija_session_user_id', data.user_id)
         localStorage.setItem('ai_job_agent_name', data.name)
+
+        localStorage.removeItem(STORAGE_KEYS.FORCE_REAUTH)
 
         setToken(data.token)
         setUserId(data.user_id)
@@ -321,12 +319,12 @@ function AuthContent() {
       } else {
         setError(formatApiError(data.detail))
         if (res.status === 400 || res.status === 429) {
-          setOtpInputs(['', '', '', '', '', ''])
+          setOtpInputs(['','','','','',''])
           setTimeout(() => otpRefs.current[0]?.focus(), 50)
         }
       }
     } catch (err) {
-      console.error('[Auth] OTP verify fetch error:', err)
+      console.error('[Auth] OTP verify error:', err)
       setError('Verification failed. Please try again.')
     } finally {
       setOtpLoading(false)
@@ -335,7 +333,7 @@ function AuthContent() {
 
   const handleResendOtp = () => {
     setOtpSent(false)
-    setOtpInputs(['', '', '', '', '', ''])
+    setOtpInputs(['','','','','',''])
     setError('')
   }
 
@@ -343,13 +341,12 @@ function AuthContent() {
     setMode(newMode)
     setError('')
     setOtpSent(false)
-    setOtpInputs(['', '', '', '', '', ''])
+    setOtpInputs(['','','','','',''])
     setSignupSuccess(false)
   }
 
-  // ── Loading spinner while Google session resolves ──────
-  if (sessionStatus === 'loading' ||
-     (sessionStatus === 'authenticated' && session?.user_id)) {
+  // Show spinner while NextAuth is resolving
+  if (sessionStatus === 'loading') {
     return (
       <div className="min-h-screen flex items-center justify-center"
         style={{ backgroundColor: '#0F172A' }}>
@@ -358,7 +355,6 @@ function AuthContent() {
     )
   }
 
-  // ── Render ─────────────────────────────────────────────
   return (
     <div
       className="min-h-screen flex items-center justify-center relative overflow-hidden"
@@ -385,7 +381,7 @@ function AuthContent() {
 
           {!otpSent && (
             <div className="flex gap-3 rounded-lg p-1" style={{ backgroundColor: '#0F172A' }}>
-              {['signin', 'signup'].map(tab => (
+              {['signin','signup'].map(tab => (
                 <button key={tab}
                   onClick={() => switchMode(tab)}
                   className="flex-1 py-2 px-4 rounded-lg font-medium transition-all duration-200"
@@ -421,7 +417,9 @@ function AuthContent() {
           </div>
         )}
 
-        {/* ── OTP Screen ─────────────────────────────── */}
+        {/* ══════════════════════════════════════════════
+            OTP SCREEN
+        ══════════════════════════════════════════════ */}
         {otpSent && !signupSuccess && (
           <div>
             <button
@@ -431,8 +429,7 @@ function AuthContent() {
               onMouseEnter={e => e.currentTarget.style.color = '#F8FAFC'}
               onMouseLeave={e => e.currentTarget.style.color = '#94A3B8'}
             >
-              <ArrowLeft size={15} />
-              Back to sign up
+              <ArrowLeft size={15} /> Back to sign up
             </button>
 
             <div className="mb-6">
@@ -447,7 +444,6 @@ function AuthContent() {
               </p>
             </div>
 
-            {/* OTP inputs */}
             <div className="flex gap-3 justify-center mb-6">
               {otpInputs.map((digit, i) => (
                 <input
@@ -509,7 +505,9 @@ function AuthContent() {
           </div>
         )}
 
-        {/* ── Sign In ─────────────────────────────────── */}
+        {/* ══════════════════════════════════════════════
+            SIGN IN FORM
+        ══════════════════════════════════════════════ */}
         {mode === 'signin' && !otpSent && (
           <div>
             <div className="mb-6">
@@ -601,7 +599,7 @@ function AuthContent() {
                   </label>
                 </div>
                 <a href="#" onClick={e => e.preventDefault()}
-                  className="text-sm" style={{ color: '#7C3AED' }}>
+                  style={{ color: '#7C3AED' }} className="text-sm">
                   Forgot password?
                 </a>
               </div>
@@ -626,7 +624,9 @@ function AuthContent() {
           </div>
         )}
 
-        {/* ── Sign Up ─────────────────────────────────── */}
+        {/* ══════════════════════════════════════════════
+            SIGN UP FORM
+        ══════════════════════════════════════════════ */}
         {mode === 'signup' && !otpSent && (
           <div>
             <div className="mb-6">
@@ -659,7 +659,6 @@ function AuthContent() {
             </div>
 
             <form onSubmit={handleSendOtp} className="space-y-4">
-              {/* Full Name */}
               <div>
                 <label className="block text-sm font-medium mb-2" style={{ color: '#F8FAFC' }}>
                   Full name
@@ -677,7 +676,6 @@ function AuthContent() {
                 </div>
               </div>
 
-              {/* Email */}
               <div>
                 <label className="block text-sm font-medium mb-2" style={{ color: '#F8FAFC' }}>
                   Email address
@@ -700,7 +698,6 @@ function AuthContent() {
                 )}
               </div>
 
-              {/* Phone */}
               <div>
                 <label className="block text-sm font-medium mb-2" style={{ color: '#F8FAFC' }}>
                   Phone number{' '}
@@ -724,7 +721,6 @@ function AuthContent() {
                 )}
               </div>
 
-              {/* Password */}
               <div>
                 <label className="block text-sm font-medium mb-2" style={{ color: '#F8FAFC' }}>
                   Password
@@ -747,7 +743,7 @@ function AuthContent() {
                   </button>
                 </div>
                 <div className="flex gap-1">
-                  {[1, 2, 3, 4].map(i => (
+                  {[1,2,3,4].map(i => (
                     <div key={i}
                       className={`flex-1 h-1.5 rounded-full transition-colors duration-200 ${
                         i <= passwordStrength ? strengthColors[passwordStrength] : ''
@@ -758,7 +754,6 @@ function AuthContent() {
                 </div>
               </div>
 
-              {/* Confirm Password */}
               <div>
                 <label className="block text-sm font-medium mb-2" style={{ color: '#F8FAFC' }}>
                   Confirm password
@@ -776,8 +771,9 @@ function AuthContent() {
                     }}
                     onBlur={e => {
                       e.target.style.boxShadow   = 'none'
-                      e.target.style.borderColor = (signUpConfirmPassword && signUpPassword !== signUpConfirmPassword)
-                        ? '#DC2626' : '#334155'
+                      e.target.style.borderColor =
+                        (signUpConfirmPassword && signUpPassword !== signUpConfirmPassword)
+                          ? '#DC2626' : '#334155'
                     }}
                     className="w-full pl-10 pr-10 py-3 rounded-lg border outline-none transition-all duration-200"
                     style={{

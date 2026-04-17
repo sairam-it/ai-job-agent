@@ -105,9 +105,9 @@ export default function JobDetailPage() {
 
   if (!job) return null
 
-  const matchedSkills = job.matched_skills || []
-  const missingSkills = job.missing_skills || []
-  const requiredSkills = job.required_skills || []
+  const matchedSkills = Array.isArray(job.matched_skills) ? job.matched_skills : []
+  const missingSkills = Array.isArray(job.missing_skills) ? job.missing_skills : []
+  const requiredSkills = Array.isArray(job.required_skills) ? job.required_skills : []
   const matchedCount = matchedSkills.length
   const totalSkillsCount = matchedCount + missingSkills.length
 

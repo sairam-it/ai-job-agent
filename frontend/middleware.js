@@ -1,60 +1,66 @@
-// middleware.js (place at: frontend/middleware.js — same level as app/)
+// middleware.js
 import { getToken } from 'next-auth/jwt'
 import { NextResponse } from 'next/server'
 
-// Routes that require authentication
 const PROTECTED_ROUTES = ['/upload', '/companies', '/jobs']
 
-// Routes that logged-in users should not see
-const AUTH_ROUTES = ['/auth']
-
 export async function middleware(request) {
-const { pathname } = request.nextUrl
+  const { pathname } = request.nextUrl
 
-// ── Check NextAuth JWT token (session cookie) ────────
-const nextAuthToken = await getToken({
-req : request,
-secret: process.env.NEXTAUTH_SECRET,
-})
+  // ── Manual session cookie (email/OTP/synced OAuth logins) ──
+  // Set by auth/page.js after email login or by page.js after OAuth sync.
+  // Session cookie — no maxAge — dies when browser closes.
+  const manualSession = request.cookies.get('aija_has_session')?.value === 'true'
 
-// ── Also check our custom sessionStorage token ────────
-// sessionStorage isn't accessible server-side, so we use
-// a cookie we set manually from the frontend after OTP/password login.
-// The cookie is set in auth/page.js after successful signin.
-const customSessionCookie = request.cookies.get('aija_has_session')?.value
+  // ── NextAuth JWT (exists during OAuth callback window) ────
+  // Checked separately so we can distinguish OAuth-in-progress
+  // from a fully-synced session.
+  const nextAuthToken = await getToken({
+    req   : request,
+    secret: process.env.NEXTAUTH_SECRET,
+  })
 
-const isAuthenticated = !!nextAuthToken || customSessionCookie === 'true'
+  // A session is "fully ready" when our manual cookie is set.
+  // A session is "partially ready" when only NextAuth JWT exists
+  // (OAuth just completed but page.js hasn't synced yet).
+  const fullyAuthenticated  = manualSession
+  const partiallyAuth       = !!nextAuthToken && !manualSession
 
-const isProtectedRoute = PROTECTED_ROUTES.some(route =>
-pathname.startsWith(route)
-)
+  // ── Protect app routes ────────────────────────────────────
+  // Require either signal for protected pages.
+  const isProtected = PROTECTED_ROUTES.some(r =>
+    pathname === r || pathname.startsWith(r + '/')
+  )
+  if (isProtected && !fullyAuthenticated && !partiallyAuth) {
+    const url = request.nextUrl.clone()
+    url.pathname = '/auth'
+    if (pathname !== '/') url.searchParams.set('from', pathname)
+    return NextResponse.redirect(url)
+  }
 
-const isAuthRoute = AUTH_ROUTES.some(route =>
-pathname.startsWith(route)
-)
+  // ── Protect home page ─────────────────────────────────────
+  // Unauthenticated users visiting / are redirected to /auth.
+  if (pathname === '/' && !fullyAuthenticated && !partiallyAuth) {
+    const url = request.nextUrl.clone()
+    url.pathname = '/auth'
+    return NextResponse.redirect(url)
+  }
 
-// ── Redirect unauthenticated users to /auth ──────────
-if (isProtectedRoute && !isAuthenticated) {
-const url = request.nextUrl.clone()
-url.pathname = '/auth'
-url.searchParams.set('from', pathname) // remember where they came from
-return NextResponse.redirect(url)
-}
+  // ── Redirect authenticated users away from /auth ──────────
+  // ONLY redirect if manual cookie is set (fully synced session).
+  // Do NOT redirect if only NextAuth JWT exists — that means OAuth
+  // just completed and page.js needs to run the sync first.
+  if (pathname.startsWith('/auth') && fullyAuthenticated) {
+    const url = request.nextUrl.clone()
+    url.pathname = '/'
+    return NextResponse.redirect(url)
+  }
 
-// ── Task 1: Protect the home page too ────────────────
-// If someone navigates to / with no session, redirect to /auth
-if (pathname === '/' && !isAuthenticated) {
-const url = request.nextUrl.clone()
-url.pathname = '/auth'
-return NextResponse.redirect(url)
-}
-
-return NextResponse.next()
+  return NextResponse.next()
 }
 
 export const config = {
-// Run middleware on these paths only — skip static files, API routes
-matcher: [
-'/((?!_next/static|_next/image|favicon.ico|api/).*)',
-],
+  matcher: [
+    '/((?!_next/static|_next/image|favicon.ico|api/).*)',
+  ],
 }

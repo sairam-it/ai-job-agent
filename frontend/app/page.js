@@ -3,8 +3,10 @@
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useState, useEffect, useRef } from 'react'
+import { useSession } from 'next-auth/react'
 import { Zap, Upload, Building2, BarChart3, Target, Award, Search, Github } from 'lucide-react'
 import { useApp } from '@/lib/context/AppContext'
+import { STORAGE_KEYS } from '@/lib/context/AppContext'
 
 const heroCards = [
   {
@@ -93,11 +95,55 @@ function HeroCard({ card, index }) {
 
 export default function LandingPage() {
   const router = useRouter()
-  const [isClient, setIsClient]         = useState(false)
+  const [isClient,     setIsClient]     = useState(false)
   const [dropdownOpen, setDropdownOpen] = useState(false)
   const dropdownRef = useRef(null)
 
-  const { user_id, userName, clearSession } = useApp()
+  // ── App context ────────────────────────────────────────────
+  const {
+    user_id, userName, clearSession,
+    setUserId, setToken, setUserName,
+    isLoading: contextLoading,
+  } = useApp()
+
+  // ── NextAuth session ───────────────────────────────────────
+  // Used to sync Google OAuth sessions that land on this page.
+  // callbackUrl:'/' in auth/page.js sends OAuth directly here.
+  const { data: nextAuthSession, status: nextAuthStatus } = useSession()
+
+  // ── THE CORE FIX: Sync NextAuth → AppContext on this page ──
+  // When Google OAuth completes and redirects to /, the next-auth
+  // session-token cookie exists and useSession() returns the session.
+  // This useEffect writes to sessionStorage + sets aija_has_session,
+  // which AppContext then reads, updating user_id and showing
+  // the authenticated navbar state correctly.
+  useEffect(() => {
+    if (nextAuthStatus !== 'authenticated') return
+    if (!nextAuthSession?.user_id || !nextAuthSession?.customToken) return
+
+    // If AppContext already has user_id, session is already synced
+    if (user_id) return
+
+    console.log('[Landing] Syncing NextAuth session to AppContext')
+
+    // Write to sessionStorage so AppContext can restore on remount
+    sessionStorage.setItem('aija_session_token',   nextAuthSession.customToken)
+    sessionStorage.setItem('aija_session_user_id', nextAuthSession.user_id)
+    localStorage.setItem('ai_job_agent_name',  nextAuthSession.userName  || '')
+    localStorage.setItem('ai_job_agent_email', nextAuthSession.userEmail || '')
+
+    // Clear force-reauth flag since user just signed in successfully
+    localStorage.removeItem(STORAGE_KEYS.FORCE_REAUTH)
+
+    // Update React state immediately — this triggers navbar re-render
+    setToken(nextAuthSession.customToken)
+    setUserId(nextAuthSession.user_id)
+    setUserName(nextAuthSession.userName || '')
+
+    // Set session cookie (session cookie — no maxAge)
+    document.cookie = `aija_has_session=true; path=/; SameSite=Lax`
+
+  }, [nextAuthStatus, nextAuthSession, user_id, setToken, setUserId, setUserName])
 
   useEffect(() => { setIsClient(true) }, [])
 
@@ -115,50 +161,52 @@ export default function LandingPage() {
     document.getElementById('how-it-works')?.scrollIntoView({ behavior: 'smooth' })
   }
 
-  const handleGetStarted = () => router.push('/auth')
-  const handleUploadResume = () => router.push('/auth')
+  // ── Session resolving — don't navigate while state is settling ──
+  // During the sync window (nextAuthStatus:'loading' or contextLoading),
+  // button clicks would incorrectly see user_id as null.
+  // We wait until both signals agree before allowing navigation.
+  const sessionReady = isClient && !contextLoading && nextAuthStatus !== 'loading'
+  const isLoggedIn   = sessionReady && !!user_id
 
-  // const handleGetStarted = () => {
-  //   router.push('/auth')
-  // }
+  const handleGetStarted = () => {
+    if (!sessionReady) return   // Don't navigate while session is resolving
+    router.push(isLoggedIn ? '/upload' : '/auth')
+  }
 
-  // const handleUploadResume = () => {
-  //   router.push('/auth')
-  // }
-
+  const handleUploadResume = () => {
+    if (!sessionReady) return
+    router.push(isLoggedIn ? '/upload' : '/auth')
+  }
 
   const handleSignOut = () => {
     setDropdownOpen(false)
     clearSession()
-    router.push('/')
+    router.push('/auth')
   }
 
-  const storedEmail    = isClient ? (localStorage.getItem('ai_job_agent_email')        || '') : ''
-  const storedPhone    = isClient ? (localStorage.getItem('ai_job_agent_phone')        || '') : ''
-  const lastSignOut    = isClient ? (localStorage.getItem('ai_job_agent_last_signout') || '') : ''
-  const firstLetter    = userName ? userName.charAt(0).toUpperCase() : '?'
+  const storedEmail  = isClient ? (localStorage.getItem('ai_job_agent_email') || '') : ''
+  const storedPhone  = isClient ? (localStorage.getItem('ai_job_agent_phone') || '') : ''
+  const lastSignOut  = isClient ? (localStorage.getItem(STORAGE_KEYS.LAST_SIGNOUT) || '') : ''
+  const firstLetter  = userName ? userName.charAt(0).toUpperCase() : '?'
 
   return (
     <div className="min-h-screen bg-[#0F172A] animate-fade-in">
 
-      {/* ── NAVBAR ───────────────────────────────────────── */}
+      {/* ── NAVBAR ─────────────────────────────────────────── */}
       <header
         className="max-w-7xl mx-auto px-4 py-4 flex items-center justify-between"
         suppressHydrationWarning
       >
-        {/* Logo */}
         <div className="flex items-center gap-2">
           <Zap className="w-6 h-6 text-[#7C3AED]" />
           <span className="text-white font-bold text-lg">AI Job Agent</span>
         </div>
 
-        {/* Right side */}
         <div className="flex items-center gap-3" suppressHydrationWarning>
-
-          {isClient && user_id ? (
-            // ── Logged in ─────────────────────────────────
+          {/* Show correct nav state based on resolved session */}
+          {isLoggedIn ? (
+            // ── Logged in ──────────────────────────────────
             <>
-              {/* Dashboard — no functionality */}
               <button
                 className="px-5 py-2.5 text-sm font-semibold text-white rounded-full border transition-all duration-200"
                 style={{ backgroundColor: '#1E293B', borderColor: '#334155' }}
@@ -174,7 +222,6 @@ export default function LandingPage() {
                 Dashboard
               </button>
 
-              {/* Get Started */}
               <button
                 onClick={handleGetStarted}
                 className="px-6 py-2.5 text-sm font-semibold rounded-full border transition-all duration-200"
@@ -204,7 +251,6 @@ export default function LandingPage() {
                   {firstLetter}
                 </button>
 
-                {/* Dropdown */}
                 {dropdownOpen && (
                   <div
                     className="absolute right-0 mt-2 rounded-xl z-50"
@@ -215,7 +261,6 @@ export default function LandingPage() {
                       boxShadow      : '0 8px 32px rgba(0,0,0,0.45)',
                     }}
                   >
-                    {/* User info */}
                     <div className="px-4 py-3" style={{ borderBottom: '1px solid #334155' }}>
                       <p className="font-semibold text-sm" style={{ color: '#F8FAFC' }}>
                         {userName || '—'}
@@ -237,7 +282,6 @@ export default function LandingPage() {
                       )}
                     </div>
 
-                    {/* Sign Out */}
                     <div className="p-2">
                       <button
                         onClick={handleSignOut}
@@ -259,7 +303,6 @@ export default function LandingPage() {
                 )}
               </div>
             </>
-
           ) : (
             // ── Logged out ────────────────────────────────
             <>
@@ -299,7 +342,7 @@ export default function LandingPage() {
         </div>
       </header>
 
-      {/* ── HERO ─────────────────────────────────────────── */}
+      {/* ── HERO ─────────────────────────────────────────────── */}
       <section className="min-h-[calc(100vh-80px)] flex items-center">
         <div className="max-w-7xl mx-auto px-4 py-16 w-full">
           <div className="grid lg:grid-cols-2 gap-12 items-center">
@@ -342,7 +385,7 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* ── HOW IT WORKS ─────────────────────────────────── */}
+      {/* ── HOW IT WORKS ─────────────────────────────────────── */}
       <section id="how-it-works" className="bg-white py-24">
         <div className="max-w-7xl mx-auto px-4">
           <div className="text-center mb-16">
@@ -373,7 +416,7 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* ── FEATURES ─────────────────────────────────────── */}
+      {/* ── FEATURES ─────────────────────────────────────────── */}
       <section className="bg-[#0F172A] py-24">
         <div className="max-w-7xl mx-auto px-4">
           <div className="text-center mb-16">
@@ -400,7 +443,7 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* ── FOOTER ───────────────────────────────────────── */}
+      {/* ── FOOTER ───────────────────────────────────────────── */}
       <footer className="bg-[#0F172A] border-t border-[#334155] py-8">
         <div className="max-w-7xl mx-auto px-4 text-center">
           <p className="text-[#64748B] text-sm mb-4">
@@ -416,7 +459,6 @@ export default function LandingPage() {
           </a>
         </div>
       </footer>
-
     </div>
   )
 }

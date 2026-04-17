@@ -9,10 +9,41 @@ const authOptions = {
     GoogleProvider({
       clientId    : process.env.GOOGLE_CLIENT_ID,
       clientSecret: process.env.GOOGLE_CLIENT_SECRET,
+
+      // ── Force account picker on the PROVIDER level ────
+      // This alone is not enough — the signIn() call in the
+      // frontend ALSO passes prompt:'select_account' as the
+      // third argument to override at runtime.
+      authorization: {
+        params: {
+          prompt       : 'select_account',
+          access_type  : 'offline',
+          response_type: 'code',
+        }
+      }
     }),
   ],
 
-  session: { strategy: 'jwt' },
+  session: {
+    strategy : 'jwt',
+    maxAge   : 24 * 60 * 60,   // 24h max, but cookie has no maxAge so browser kills it
+    updateAge: 60 * 60,
+  },
+
+  // ── Session cookie — no maxAge = expires on browser close ──
+  cookies: {
+    sessionToken: {
+      name   : 'next-auth.session-token',
+      options: {
+        httpOnly: true,
+        sameSite: 'lax',
+        path    : '/',
+        secure  : process.env.NODE_ENV === 'production',
+        // NO maxAge property here intentionally
+        // This makes it a "session cookie" — browser discards it on close
+      }
+    }
+  },
 
   pages: {
     signIn: '/auth',
@@ -20,16 +51,18 @@ const authOptions = {
   },
 
   callbacks: {
-    // ── Restrict to @gmail.com only ─────────────────────
-    async signIn({ user }) {
-      if (!user.email?.endsWith('@gmail.com')) {
-        return '/auth?error=gmail_only'
+    async signIn({ user, account }) {
+      // Block non-Gmail accounts from Google OAuth
+      if (account?.provider === 'google') {
+        if (!user.email?.endsWith('@gmail.com')) {
+          return '/auth?error=gmail_only'
+        }
       }
       return true
     },
 
-    // ── On first Google sign-in: create/find MongoDB user ─
     async jwt({ token, user, account }) {
+      // Only runs during initial sign-in (when account is present)
       if (account?.provider === 'google' && user) {
         try {
           const client = await clientPromise
@@ -60,13 +93,12 @@ const authOptions = {
           token.userEmail   = dbUser.email
 
         } catch (err) {
-          console.error('[NextAuth] DB error:', err)
+          console.error('[NextAuth JWT] DB error:', err)
         }
       }
       return token
     },
 
-    // ── Expose user_id and customToken to the session ─────
     async session({ session, token }) {
       session.user_id     = token.user_id
       session.customToken = token.customToken
@@ -75,6 +107,8 @@ const authOptions = {
       return session
     },
   },
+
+  secret: process.env.NEXTAUTH_SECRET,
 }
 
 const handler = NextAuth(authOptions)
