@@ -6,12 +6,23 @@ from slowapi.util import get_remote_address
 from api.database import db
 from services.job_research_service import research_all_companies
 
+# Add these imports at top of jobs.py
+from services.apply_service import generate_apply_kit
+from services.llm_service import generate_cover_letter_for_job
+
+# api/routes/jobs.py
+# ── Add these imports at the top ──────────────────────────
+from fastapi import APIRouter, HTTPException, Request, Query, Header
+from pydantic import BaseModel
+from datetime import datetime
+
 router  = APIRouter()
 limiter = Limiter(key_func=get_remote_address)
 
 resume_collection       = db["resumes"]
 companies_collection    = db["companies"]
 scraped_jobs_collection = db["scraped_jobs"]
+saved_jobs_collection = db["saved_jobs"]
 
 _job_store: dict[str, list] = {}
 
@@ -135,3 +146,318 @@ async def get_job_detail(user_id: str, title: str, company: str):
     if not job:
         raise HTTPException(status_code=404, detail="Job not found.")
     return job
+
+
+class ApplyKitRequest(BaseModel):
+    user_id : str
+    title   : str
+    company : str
+
+
+# In jobs.py — replace the /jobs/apply-kit endpoint
+
+@router.post("/jobs/apply-kit")
+@limiter.limit("20/minute")
+async def get_apply_kit(request: Request, body: ApplyKitRequest):
+    """
+    Generates pre-filled apply kit for a specific job.
+    Resolves job URL with 3-level fallback and validates format.
+    """
+    profile = await resume_collection.find_one(
+        {"user_id": body.user_id},
+        {"_id": 0}
+    )
+    if not profile:
+        raise HTTPException(status_code=404, detail="Profile not found.")
+
+    job = await scraped_jobs_collection.find_one(
+        {
+            "user_id": body.user_id,
+            "title"  : body.title,
+            "company": body.company,
+        },
+        {"_id": 0, "user_id": 0}
+    )
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found.")
+
+    # ── URL Resolution: 3-level fallback ──────────────────
+    # Level 1: direct apply URL stored in job
+    # Level 2: raw source page we scraped
+    # Level 3: Google search for the job title + company
+    def resolve_job_url(job: dict) -> tuple[str, str]:
+        """
+        Returns (url, url_status) where url_status is:
+          'direct'   → actual apply URL, reliable
+          'source'   → scraped source page, may need navigation
+          'search'   → Google search fallback, portal unknown
+          'missing'  → no URL at all
+        """
+        # Try direct apply URL first
+        url = job.get("url", "").strip()
+        if url and is_valid_url(url):
+            return ensure_https(url), "direct"
+
+        # Try raw source page
+        raw = job.get("raw_source", "").strip()
+        if raw and is_valid_url(raw):
+            return ensure_https(raw), "source"
+
+        # Try apply_url field (some scrapers use this key)
+        apply = job.get("apply_url", "").strip()
+        if apply and is_valid_url(apply):
+            return ensure_https(apply), "direct"
+
+        # Last resort: Google search
+        query = f"{job.get('title', '')} {job.get('company', '')} job apply"
+        search_url = f"https://www.google.com/search?q={query.replace(' ', '+')}"
+        return search_url, "search"
+
+    def is_valid_url(url: str) -> bool:
+        """Returns False for empty, placeholder, or localhost URLs."""
+        if not url:
+            return False
+        invalid = [
+            "[ download", "placeholder", "n/a", "none",
+            "localhost", "127.0.0.1", "example.com"
+        ]
+        url_lower = url.lower()
+        return not any(x in url_lower for x in invalid)
+
+    def ensure_https(url: str) -> str:
+        """Adds https:// if no protocol present."""
+        if url.startswith("http://") or url.startswith("https://"):
+            return url
+        return "https://" + url
+
+    resolved_url, url_status = resolve_job_url(job)
+
+    # ── Cover letter ───────────────────────────────────────
+    cover_letter = profile.get("cover_letter_bio", "")
+    if not cover_letter:
+        try:
+            from services.llm_service import generate_cover_letter_for_job
+            cover_letter = await generate_cover_letter_for_job(profile, job)
+        except Exception as e:
+            print(f"[ApplyKit] Cover letter generation failed: {e}")
+            name = profile.get("name", "")
+            cover_letter = (
+                f"I am writing to express my strong interest in the "
+                f"{job.get('title', 'position')} role at {job.get('company', 'your company')}. "
+                f"My background in {', '.join(profile.get('skills', [])[:3])} "
+                f"makes me a strong fit for this opportunity."
+            )
+
+    profile_with_cl = {**profile, "cover_letter_bio": cover_letter}
+
+    from services.apply_service import generate_apply_kit
+    kit = generate_apply_kit(
+        profile  = profile_with_cl,
+        job_url  = resolved_url,
+        job      = job
+    )
+
+    return {
+        "job": {
+            "title"     : job.get("title"),
+            "company"   : job.get("company"),
+            "location"  : job.get("location"),
+            "url"       : resolved_url,
+            "url_status": url_status,
+            "grade"     : job.get("grade"),
+            "match_score": job.get("match_score"),
+        },
+        "kit"         : kit,
+        "cover_letter": cover_letter,
+    }
+
+@router.post("/jobs/save-missing-fields")
+async def save_missing_fields(
+    request: Request,
+    user_id: str,
+    fields : dict   # { "linkedin_url": "...", "city": "..." }
+):
+    """
+    Saves user-provided missing fields to MongoDB.
+    Called after user fills the missing fields prompt.
+    Next time they apply, these fields are pre-filled.
+    """
+    if not fields:
+        return {"message": "No fields to save."}
+
+    await resume_collection.update_one(
+        {"user_id": user_id},
+        {"$set": fields}
+    )
+
+    return {
+        "message": f"Saved {len(fields)} fields to your profile.",
+        "fields" : list(fields.keys())
+    }
+
+# api/routes/jobs.py — replace the save_job endpoint only
+
+class SaveJobRequest(BaseModel):
+    user_id : str
+    title   : str
+    company : str
+    # Optional full job data — sent by frontend when saving from detail page
+    # Prevents 404 when job exists in a different user's scraped_jobs
+    location         : str   = ""
+    url              : str   = ""
+    grade            : str   = ""
+    match_score      : int   = 0
+    raw_match        : int   = 0
+    experience_level : str   = ""
+    description      : str   = ""
+    matched_skills   : list  = []
+    missing_skills   : list  = []
+    required_skills  : list  = []
+    match_reason     : str   = ""
+    source           : str   = "selected"
+    date_posted      : str   = ""
+
+
+@router.post("/jobs/save")
+async def save_job(body: SaveJobRequest, authorization: str = Header(None)):
+    """
+    Saves a job to user's personal favorites.
+
+    Strategy:
+      1. Try to fetch full job from scraped_jobs for this user
+      2. If not found, build document from request body fields
+         (frontend sends full job data from its local state)
+      3. Upsert into saved_jobs — idempotent, no duplicates
+
+    This two-path approach fixes the case where:
+      - Job was seeded without matching user_id
+      - Job comes from demo data inserted by seed script
+      - User navigated to job detail via direct URL
+    """
+    from datetime import datetime
+
+    # Path 1: try to get full data from scraped_jobs
+    job = await scraped_jobs_collection.find_one(
+        {
+            "user_id": body.user_id,
+            "title"  : body.title,
+            "company": body.company,
+        },
+        {"_id": 0}
+    )
+
+    if job:
+        print(f"[SaveJob] Found in scraped_jobs: {body.title} @ {body.company}")
+        save_doc = {**job}
+    else:
+        # Path 2: build from request body
+        # Frontend must send full job data when calling this endpoint
+        print(f"[SaveJob] Not in scraped_jobs, building from request body: {body.title}")
+        save_doc = {
+            "user_id"        : body.user_id,
+            "title"          : body.title,
+            "company"        : body.company,
+            "location"       : body.location,
+            "url"            : body.url,
+            "grade"          : body.grade,
+            "match_score"    : body.match_score,
+            "raw_match"      : body.raw_match,
+            "experience_level": body.experience_level,
+            "description"    : body.description,
+            "matched_skills" : body.matched_skills,
+            "missing_skills" : body.missing_skills,
+            "required_skills": body.required_skills,
+            "match_reason"   : body.match_reason,
+            "source"         : body.source,
+            "date_posted"    : body.date_posted,
+        }
+
+    save_doc["saved_at"] = datetime.utcnow().isoformat()
+    save_doc["user_id"]  = body.user_id   # ensure correct user_id always
+
+    result = await db["saved_jobs"].update_one(
+        {
+            "user_id": body.user_id,
+            "title"  : body.title,
+            "company": body.company,
+        },
+        {"$set": save_doc},
+        upsert=True
+    )
+
+    action = "updated" if result.matched_count > 0 else "saved"
+    print(f"[SaveJob] {action}: {body.title} @ {body.company} for user {body.user_id[:8]}")
+
+    return {
+        "message"  : f"'{body.title}' saved to your favorites.",
+        "action"   : action,
+    }
+
+
+@router.delete("/jobs/save")
+async def unsave_job(
+    user_id : str,
+    title   : str,
+    company : str,
+    authorization: str = Header(None)
+):
+    """
+    Removes a job from the user's favorites.
+    Only deletes the document owned by this user_id.
+    """
+    result = await db["saved_jobs"].delete_one(
+        {
+            "user_id": user_id,
+            "title"  : title,
+            "company": company,
+        }
+    )
+
+    if result.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Saved job not found.")
+
+    return {"message": f"'{title}' removed from your favorites."}
+
+
+@router.get("/jobs/saved")
+async def get_saved_jobs(
+    user_id : str,
+    authorization: str = Header(None)
+):
+    """
+    Returns all saved jobs for this user, sorted by save date descending.
+    Strictly filtered by user_id — impossible to see another user's saves.
+    """
+    cursor = db["saved_jobs"].find(
+        {"user_id": user_id},
+        {"_id": 0, "user_id": 0}
+    ).sort("saved_at", -1)
+
+    jobs = await cursor.to_list(length=200)
+
+    return {
+        "jobs" : jobs,
+        "total": len(jobs),
+    }
+
+
+@router.get("/jobs/saved/check")
+async def check_job_saved(
+    user_id : str,
+    title   : str,
+    company : str,
+    authorization: str = Header(None)
+):
+    """
+    Returns whether a specific job is saved by this user.
+    Used by JobDetailPage to show filled/unfilled heart icon.
+    """
+    existing = await db["saved_jobs"].find_one(
+        {
+            "user_id": user_id,
+            "title"  : title,
+            "company": company,
+        },
+        {"_id": 1}
+    )
+    return {"is_saved": existing is not None}

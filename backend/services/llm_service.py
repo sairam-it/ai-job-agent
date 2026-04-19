@@ -98,11 +98,20 @@ Return this exact JSON structure:
 
 async def bulk_extract_jobs(
     pages       : list[dict],
-    company_name: str,
+    company_name: str | None,    # None = infer from page content
     source_tag  : str = "selected"
 ) -> list[dict]:
     """
-    Sends all scraped pages for one company in a single Groq call.
+    Extracts job listings from scraped pages in one Groq call.
+
+    When company_name is None (fallback/recommended jobs):
+      LLM reads the company name from page content.
+      This prevents "Various" appearing in job cards.
+
+    Title accuracy:
+      We instruct the LLM to copy the EXACT title from the page,
+      not paraphrase or normalise it. This prevents title drift
+      between our listing and the external portal.
     """
     if not pages:
         return []
@@ -111,34 +120,75 @@ async def bulk_extract_jobs(
     for i, page in enumerate(pages[:4], 1):
         pages_text += f"\n--- PAGE {i} (URL: {page['url']}) ---\n{page['text'][:800]}\n"
 
-    system_prompt = (
-        "You are a job listing parser. Always respond with valid JSON only."
-    )
+    # Build company instruction based on whether name is known
+    if company_name:
+        company_instruction = f'Set "company" to exactly "{company_name}" for every job.'
+    else:
+        company_instruction = (
+            'Set "company" to the exact company name found on the page. '
+            'Read it from the page header, logo alt text, or "About" section. '
+            'Never use "Various", "Unknown", or leave it empty.'
+        )
 
-    user_prompt = f"""
-Extract ALL distinct job listings from these {company_name} career pages.
-Return a JSON object with a "jobs" list containing title, location, experience_level, required_skills, description, and apply_url.
+    prompt = f"""
+You are a job listing parser. Extract ALL distinct job listings from the pages below.
+Return a JSON object with this exact structure:
+
+{{
+  "jobs": [
+    {{
+      "title"           : "EXACT job title as written on the page — do not paraphrase",
+      "company"         : "company name",
+      "location"        : "City, Country or Remote",
+      "experience_level": "entry" | "mid" | "senior" | null,
+      "required_skills" : ["skill1", "skill2"],
+      "description"     : "2-sentence role summary",
+      "apply_url"       : "direct application URL"
+    }}
+  ]
+}}
 
 Rules:
-- Return at most 5 jobs total
-- If no jobs found, return {{"jobs": []}}
+- Title: copy EXACTLY as written on the page, no rewording
+- {company_instruction}
+- Max 5 jobs total across all pages
+- Return empty array if no real job listings found: {{"jobs": []}}
+- required_skills must always be an array, even if empty
+- apply_url should be the direct apply link if visible, otherwise the page URL
 
 PAGES:
 {pages_text}
 """
 
     try:
-        raw     = await asyncio.to_thread(_groq_chat, FAST_MODEL, user_prompt, system_prompt)
-        parsed  = _safe_json(raw)
-        if not parsed: return []
+        raw    = await asyncio.to_thread(_groq_chat, FAST_MODEL, prompt,
+                    "You are a precise job listing parser. Return only valid JSON.")
+        parsed = _safe_json(raw)
+
+        if not parsed:
+            return []
+
         job_list = parsed if isinstance(parsed, list) else parsed.get("jobs", [])
-        
+        if not isinstance(job_list, list):
+            return []
+
         jobs = []
         for job in job_list:
-            if not job.get("title"): continue
+            title   = str(job.get("title", "")).strip()
+            company = str(job.get("company", "")).strip()
+
+            # Skip if essential fields missing or placeholder
+            if not title or not company:
+                continue
+            if company.lower() in ("various", "unknown", "n/a", "company", ""):
+                continue
+
+            # Use company_name override if provided (selected companies)
+            final_company = company_name if company_name else company
+
             jobs.append({
-                "title"           : str(job.get("title", "N/A")).strip(),
-                "company"         : company_name,
+                "title"           : title,
+                "company"         : final_company,
                 "location"        : job.get("location") or "India",
                 "experience_level": job.get("experience_level"),
                 "required_skills" : job.get("required_skills") or [],
@@ -147,9 +197,11 @@ PAGES:
                 "date_posted"     : "Recent",
                 "source"          : source_tag,
             })
+
         return jobs
+
     except Exception as e:
-        print(f"[Groq BulkExtract] Failed for {company_name}: {e}")
+        print(f"[LLM BulkExtract] Failed: {e}")
         return []
 
 
@@ -219,3 +271,86 @@ def _keyword_fallback(user_skills: list, job_skills: list) -> dict:
         "grade": "A" if score >= 80 else "D",
         "match_reason": "Keyword fallback used."
     }
+
+
+async def generate_cover_letter_for_job(
+    profile : dict,
+    job     : dict
+) -> str:
+    """
+    Generates a personalized cover letter using profile + job context.
+    Called when user's profile has no default cover_letter_bio.
+    """
+    user_skills    = profile.get("skills", [])[:10]
+    matched_skills = job.get("matched_skills", [])
+    user_name      = profile.get("name", "")
+    job_title      = job.get("title", "")
+    company        = job.get("company", "")
+    experience_lvl = profile.get("experience_level", "")
+    years          = profile.get("years", 0)
+    match_reason   = job.get("match_reason", "")
+
+    prompt = f"""
+Write a professional 3-paragraph cover letter for this job application.
+
+CANDIDATE:
+  Name: {user_name}
+  Skills: {", ".join(user_skills)}
+  Experience: {experience_lvl} level, {years} years
+  Why they match: {match_reason}
+
+JOB:
+  Title: {job_title}
+  Company: {company}
+  Required skills matched: {", ".join(matched_skills)}
+
+Rules:
+- Paragraph 1: Opening — express interest, mention the role and company
+- Paragraph 2: Highlight 2-3 most relevant matched skills with brief context
+- Paragraph 3: Close — express enthusiasm, mention availability
+- Keep it under 250 words
+- Professional but not robotic tone
+- Do NOT include date, address headers, or "Dear Hiring Manager" salutation
+- Return ONLY the cover letter text, no labels or JSON
+
+Return a plain text cover letter body only.
+"""
+
+    try:
+        raw = await asyncio.to_thread(
+            _groq_chat,
+            SMART_MODEL,
+            prompt,
+            "You are a professional career coach writing cover letters."
+        )
+        # For cover letters, we want plain text not JSON
+        return raw.strip()
+    except Exception as e:
+        print(f"[Cover Letter] Generation failed: {e}")
+        return (
+            f"I am writing to express my strong interest in the {job_title} "
+            f"position at {company}. With {years} years of experience in "
+            f"{', '.join(user_skills[:3])}, I am confident I can contribute "
+            f"meaningfully to your team. I would welcome the opportunity to "
+            f"discuss how my background aligns with your requirements."
+        )
+    
+
+
+def _groq_chat(model: str, prompt: str, system: str = "", json_mode: bool = True) -> str:
+    messages = []
+    if system:
+        messages.append({"role": "system", "content": system})
+    messages.append({"role": "user", "content": prompt})
+
+    kwargs = {
+        "model"      : model,
+        "messages"   : messages,
+        "temperature": 0.1,
+        "max_tokens" : 2048,
+    }
+    if json_mode:
+        kwargs["response_format"] = {"type": "json_object"}
+
+    response = _client.chat.completions.create(**kwargs)
+    return response.choices[0].message.content or ""

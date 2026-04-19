@@ -12,27 +12,38 @@ const SESSION_KEYS = {
 }
 
 export const STORAGE_KEYS = {
-  NAME          : 'ai_job_agent_name',
-  EMAIL         : 'ai_job_agent_email',
-  PHONE         : 'ai_job_agent_phone',
-  LAST_SIGNOUT  : 'ai_job_agent_last_signout',
-  PROFILE       : 'ai_job_agent_profile',
-  COMPANIES     : 'ai_job_agent_companies',
-  // Signals that user explicitly signed out — auth/page.js checks this
-  // to clear any leftover NextAuth session on next visit.
-  FORCE_REAUTH  : 'aija_force_reauth',
+  NAME        : 'ai_job_agent_name',
+  EMAIL       : 'ai_job_agent_email',
+  PHONE       : 'ai_job_agent_phone',       // ← was missing from clearSession
+  LAST_SIGNOUT: 'ai_job_agent_last_signout',
+  PROFILE     : 'ai_job_agent_profile',
+  COMPANIES   : 'ai_job_agent_companies',
+  FORCE_REAUTH: 'aija_force_reauth',
 }
 
-export function AppProvider({ children }) {
-  const [user_id,   setUserIdState]   = useState(null)
-  const [token,     setTokenState]    = useState(null)
-  const [userName,  setUserName]      = useState(null)
-  const [profile,   setProfileState]  = useState(null)
-  const [companies, setCompaniesState]= useState([])
-  const [jobsCount, setJobsCount]     = useState(0)
-  const [isLoading, setIsLoading]     = useState(true)
+// ── All localStorage keys that belong to a user session ──
+// This list is the single source of truth for "what to clear"
+// When a new user signs in, NONE of these should have stale values.
+const ALL_USER_KEYS = [
+  STORAGE_KEYS.NAME,
+  STORAGE_KEYS.EMAIL,
+  STORAGE_KEYS.PHONE,        // ← THE BUG FIX: was never cleared before
+  STORAGE_KEYS.PROFILE,
+  STORAGE_KEYS.COMPANIES,
+  STORAGE_KEYS.FORCE_REAUTH,
+  // Note: LAST_SIGNOUT intentionally kept — used in profile dropdown
+]
 
-  // ── Restore session from sessionStorage on mount ──────────
+export function AppProvider({ children }) {
+  const [user_id,    setUserIdState]    = useState(null)
+  const [token,      setTokenState]     = useState(null)
+  const [userName,   setUserName]       = useState(null)
+  const [profile,    setProfileState]   = useState(null)
+  const [companies,  setCompaniesState] = useState([])
+  const [jobsCount,  setJobsCount]      = useState(0)
+  const [isLoading,  setIsLoading]      = useState(true)
+
+  // ── Restore session from sessionStorage on mount ──────
   useEffect(() => {
     if (typeof window === 'undefined') return
 
@@ -47,9 +58,9 @@ export function AppProvider({ children }) {
       const profRaw   = localStorage.getItem(STORAGE_KEYS.PROFILE)
       const compRaw   = localStorage.getItem(STORAGE_KEYS.COMPANIES)
 
-      if (name) setUserName(name)
-      if (profRaw)  { try { setProfileState(JSON.parse(profRaw))   } catch {} }
-      if (compRaw)  { try { setCompaniesState(JSON.parse(compRaw)) } catch {} }
+      if (name)    setUserName(name)
+      if (profRaw) { try { setProfileState(JSON.parse(profRaw))   } catch {} }
+      if (compRaw) { try { setCompaniesState(JSON.parse(compRaw)) } catch {} }
     }
 
     setIsLoading(false)
@@ -79,37 +90,46 @@ export function AppProvider({ children }) {
     else               localStorage.removeItem(STORAGE_KEYS.COMPANIES)
   }
 
+  // ── clearSession: wipes EVERY user-owned key ──────────
   const clearSession = async () => {
+    // Record sign-out time BEFORE clearing
     const now = new Date().toLocaleString('en-IN', {
       dateStyle: 'medium', timeStyle: 'short'
     })
     localStorage.setItem(STORAGE_KEYS.LAST_SIGNOUT, now)
 
-    // ── Signal that user explicitly signed out ────────────
-    // auth/page.js reads this on load and clears any leftover
-    // NextAuth JWT that might otherwise cause auto-login.
+    // Set force-reauth so auth/page.js clears stale NextAuth session
     localStorage.setItem(STORAGE_KEYS.FORCE_REAUTH, 'true')
 
-    // ── Clear auth storage ────────────────────────────────
+    // ── Clear ALL user-owned localStorage keys ─────────
+    // This is the fix for the ghost phone number bug.
+    // Previously only NAME, PROFILE, COMPANIES were cleared.
+    // PHONE was left behind and appeared for the next user.
+    ALL_USER_KEYS.forEach(key => localStorage.removeItem(key))
+
+    // ── Clear auth from sessionStorage ────────────────
     sessionStorage.removeItem(SESSION_KEYS.USER_ID)
     sessionStorage.removeItem(SESSION_KEYS.TOKEN)
 
-    // ── Clear profile data ────────────────────────────────
-    localStorage.removeItem(STORAGE_KEYS.PROFILE)
-    localStorage.removeItem(STORAGE_KEYS.COMPANIES)
-    localStorage.removeItem(STORAGE_KEYS.NAME)
-
-    // ── Kill session indicator cookie ─────────────────────
+    // ── Kill session indicator cookie ─────────────────
     document.cookie = 'aija_has_session=; path=/; max-age=0; SameSite=Lax'
 
-    // ── Kill NextAuth JWT cookie ──────────────────────────
-    // Critical: without this, Google OAuth skips account picker
-    // and silently restores the previous session next time.
+    // ── Kill NextAuth JWT cookie ──────────────────────
     await nextAuthSignOut({ redirect: false })
 
-    // ── Reset React state ─────────────────────────────────
+    // ── Reset all React state ─────────────────────────
     setUserIdState(null)
     setTokenState(null)
+    setUserName(null)
+    setProfileState(null)
+    setCompaniesState([])
+    setJobsCount(0)
+  }
+
+  // ── clearUserData: used on new signup BEFORE setting new data ──
+  // Prevents any previous user's data from bleeding into new session.
+  const clearUserData = () => {
+    ALL_USER_KEYS.forEach(key => localStorage.removeItem(key))
     setUserName(null)
     setProfileState(null)
     setCompaniesState([])
@@ -126,6 +146,7 @@ export function AppProvider({ children }) {
       jobsCount, setJobsCount,
       isLoading,
       clearSession,
+      clearUserData,   // ← new: call before writing new user data
     }}>
       {children}
     </AppContext.Provider>
@@ -136,14 +157,15 @@ export function useApp() {
   const context = useContext(AppContext)
   if (context === undefined) {
     return {
-      user_id: null,   setUserId: () => {},
-      token: null,     setToken: () => {},
-      userName: null,  setUserName: () => {},
-      profile: null,   setProfile: () => {},
-      companies: [],   setCompanies: () => {},
-      jobsCount: 0,    setJobsCount: () => {},
+      user_id: null,       setUserId: () => {},
+      token: null,         setToken: () => {},
+      userName: null,      setUserName: () => {},
+      profile: null,       setProfile: () => {},
+      companies: [],       setCompanies: () => {},
+      jobsCount: 0,        setJobsCount: () => {},
       isLoading: false,
       clearSession: async () => {},
+      clearUserData: () => {},
     }
   }
   return context

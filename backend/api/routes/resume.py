@@ -104,3 +104,67 @@ async def get_saved_companies(user_id: str, authorization: str = Header(None)):
         "exists"   : True,
         "companies": [c["name"] for c in doc.get("companies", [])]
     }
+
+
+# Add this function to resume.py
+# Called when user fills missing fields during apply flow
+
+@router.post("/resume/extend-profile")
+async def extend_profile(
+    user_id         : str,
+    authorization   : str = Header(None),
+    linkedin_url    : str = None,
+    github_url      : str = None,
+    portfolio_url   : str = None,
+    address         : str = None,
+    city            : str = None,
+    state           : str = None,
+    pincode         : str = None,
+    nationality     : str = None,
+    gender          : str = None,
+    notice_period   : str = None,   # "Immediate" / "30 days" / "60 days"
+    current_ctc     : str = None,   # "5 LPA"
+    expected_ctc    : str = None,   # "8 LPA"
+    highest_degree  : str = None,   # "B.Tech CSE"
+    graduation_year : str = None,   # "2025"
+    university      : str = None,   # "CBIT Hyderabad"
+    cover_letter_bio: str = None,   # 2-3 sentence default bio
+):
+    """
+    Saves additional profile fields that job applications need.
+    Called when user is prompted for missing fields during apply flow.
+    All fields optional — only updates what is provided.
+    """
+    get_user_from_token(authorization)
+
+    update_fields = {}
+    locals_copy = {
+        "linkedin_url"   : linkedin_url,
+        "github_url"     : github_url,
+        "portfolio_url"  : portfolio_url,
+        "address"        : address,
+        "city"           : city,
+        "state"          : state,
+        "pincode"        : pincode,
+        "nationality"    : nationality,
+        "gender"         : gender,
+        "notice_period"  : notice_period,
+        "current_ctc"    : current_ctc,
+        "expected_ctc"   : expected_ctc,
+        "highest_degree" : highest_degree,
+        "graduation_year": graduation_year,
+        "university"     : university,
+        "cover_letter_bio": cover_letter_bio,
+    }
+
+    for key, value in locals_copy.items():
+        if value is not None:
+            update_fields[key] = value
+
+    if update_fields:
+        await resume_collection.update_one(
+            {"user_id": user_id},
+            {"$set": update_fields}
+        )
+
+    return {"message": "Profile updated.", "updated_fields": list(update_fields.keys())}

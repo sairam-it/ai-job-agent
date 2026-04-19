@@ -8,10 +8,7 @@ _SCORE_SEMAPHORE = asyncio.Semaphore(4)
 
 
 async def _score_jobs(jobs: list, user_profile: dict) -> list:
-    """
-    Scores all extracted jobs semantically.
-    Uses semaphore to limit concurrent Gemini calls.
-    """
+    """Scores all extracted jobs semantically with semaphore throttling."""
     async def score_one(job):
         async with _SCORE_SEMAPHORE:
             score_data = await semantic_score(user_profile, job)
@@ -35,28 +32,33 @@ async def research_all_companies(
     user_profile: dict
 ) -> list[dict]:
     """
-    Full parallel research pipeline:
+    Full parallel research pipeline.
 
-    1. search_all_companies() → all company URL searches fire simultaneously
-    2. scrape_urls()          → all pages scraped concurrently per company
-    3. bulk_extract_jobs()    → one LLM call per company (not per page)
-    4. semantic_score()       → all jobs scored in parallel (semaphore-limited)
+    Fix for "Various" company name:
+      The __fallback__ key is a special sentinel used by search_service
+      when not enough results come from selected companies.
+      Previously we passed company_name="Various" to bulk_extract_jobs.
+      Now we skip the fallback bucket entirely for company name assignment
+      and instead tag those jobs as source="recommended" with no
+      company override — the LLM assigns whatever company it finds.
 
-    Fallback:
-    - If total jobs < 5, a "recommended" search was already triggered
-      in search_service.py — those results are processed here too.
+    Fix for title drift:
+      We no longer allow the LLM to "normalise" job titles.
+      The title extracted from the career page is the authoritative title.
+      apply_service.py uses this same title when building the apply kit,
+      so what the user sees matches what the portal shows.
     """
     user_skills      = user_profile.get("skills", [])
     experience_level = user_profile.get("experience_level", "")
 
-    # ── Step 1: Parallel search for all companies ─────────
+    # Step 1: Parallel search
     search_results = await search_all_companies(
         companies        = companies,
         user_skills      = user_skills,
         experience_level = experience_level
     )
 
-    # ── Step 2 + 3: Scrape + bulk extract per company ─────
+    # Step 2 + 3: Scrape + bulk extract per company
     async def process_company(company_name: str, data: dict) -> list:
         urls       = data.get("urls", [])
         source_tag = data.get("tag", "selected")
@@ -68,18 +70,31 @@ async def research_all_companies(
         if not scraped_pages:
             return []
 
-        # Bulk extraction — one LLM call for all pages of this company
+        # Fix: resolve real company name for fallback bucket
+        # __fallback__ is a sentinel — use None so LLM picks the real name
+        resolved_name = None if company_name == "__fallback__" else company_name
+
         jobs = await bulk_extract_jobs(
             pages        = scraped_pages,
-            company_name = company_name if company_name != "__fallback__" else "Various",
+            company_name = resolved_name,   # None → LLM infers from page content
             source_tag   = source_tag
         )
-        return jobs
 
-    # Fire all company extractions concurrently
+        # Fix: strip any job where company resolved to empty or placeholder
+        cleaned = []
+        for job in jobs:
+            c = (job.get("company") or "").strip()
+            if not c or c.lower() in ("various", "unknown", "n/a", "company", ""):
+                # Skip rather than show misleading company name
+                print(f"[Research] Skipping job with invalid company name: '{c}'")
+                continue
+            cleaned.append(job)
+
+        return cleaned
+
     extract_tasks = [
-        process_company(company_name, data)
-        for company_name, data in search_results.items()
+        process_company(name, data)
+        for name, data in search_results.items()
     ]
 
     extracted_per_company = await asyncio.gather(
@@ -90,17 +105,17 @@ async def research_all_companies(
     all_jobs = []
     for result in extracted_per_company:
         if isinstance(result, Exception):
-            print(f"[Research] Company extraction error: {result}")
+            print(f"[Research] Extraction error: {result}")
             continue
         all_jobs.extend(result)
 
     if not all_jobs:
         return []
 
-    # ── Step 4: Semantic scoring — all jobs in parallel ───
+    # Step 4: Semantic scoring
     scored_jobs = await _score_jobs(all_jobs, user_profile)
 
-    # ── Sort: selected first by score, then recommended ───
+    # Sort: selected company jobs first, then recommended
     selected    = [j for j in scored_jobs if j.get("source") != "recommended"]
     recommended = [j for j in scored_jobs if j.get("source") == "recommended"]
 

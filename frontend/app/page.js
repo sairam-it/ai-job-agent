@@ -4,7 +4,7 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useState, useEffect, useRef } from 'react'
 import { useSession } from 'next-auth/react'
-import { Zap, Upload, Building2, BarChart3, Target, Award, Search, Github } from 'lucide-react'
+import { Zap, Upload, Building2, BarChart3, Target, Award, Search, Github, Bookmark } from 'lucide-react'
 import { useApp } from '@/lib/context/AppContext'
 import { STORAGE_KEYS } from '@/lib/context/AppContext'
 
@@ -99,51 +99,35 @@ export default function LandingPage() {
   const [dropdownOpen, setDropdownOpen] = useState(false)
   const dropdownRef = useRef(null)
 
-  // ── App context ────────────────────────────────────────────
   const {
-    user_id, userName, clearSession,
+    user_id, userName, clearSession, clearUserData,
     setUserId, setToken, setUserName,
     isLoading: contextLoading,
   } = useApp()
 
-  // ── NextAuth session ───────────────────────────────────────
-  // Used to sync Google OAuth sessions that land on this page.
-  // callbackUrl:'/' in auth/page.js sends OAuth directly here.
   const { data: nextAuthSession, status: nextAuthStatus } = useSession()
 
-  // ── THE CORE FIX: Sync NextAuth → AppContext on this page ──
-  // When Google OAuth completes and redirects to /, the next-auth
-  // session-token cookie exists and useSession() returns the session.
-  // This useEffect writes to sessionStorage + sets aija_has_session,
-  // which AppContext then reads, updating user_id and showing
-  // the authenticated navbar state correctly.
+  // ── Google OAuth sync on landing page ─────────────────
   useEffect(() => {
     if (nextAuthStatus !== 'authenticated') return
     if (!nextAuthSession?.user_id || !nextAuthSession?.customToken) return
-
-    // If AppContext already has user_id, session is already synced
     if (user_id) return
 
-    console.log('[Landing] Syncing NextAuth session to AppContext')
+    clearUserData()   // ← Task 2 fix
 
-    // Write to sessionStorage so AppContext can restore on remount
     sessionStorage.setItem('aija_session_token',   nextAuthSession.customToken)
     sessionStorage.setItem('aija_session_user_id', nextAuthSession.user_id)
     localStorage.setItem('ai_job_agent_name',  nextAuthSession.userName  || '')
     localStorage.setItem('ai_job_agent_email', nextAuthSession.userEmail || '')
 
-    // Clear force-reauth flag since user just signed in successfully
-    localStorage.removeItem(STORAGE_KEYS.FORCE_REAUTH)
+    localStorage.removeItem('aija_force_reauth')
 
-    // Update React state immediately — this triggers navbar re-render
     setToken(nextAuthSession.customToken)
     setUserId(nextAuthSession.user_id)
     setUserName(nextAuthSession.userName || '')
 
-    // Set session cookie (session cookie — no maxAge)
     document.cookie = `aija_has_session=true; path=/; SameSite=Lax`
-
-  }, [nextAuthStatus, nextAuthSession, user_id, setToken, setUserId, setUserName])
+  }, [nextAuthStatus, nextAuthSession, user_id, setToken, setUserId, setUserName, clearUserData])
 
   useEffect(() => { setIsClient(true) }, [])
 
@@ -161,33 +145,17 @@ export default function LandingPage() {
     document.getElementById('how-it-works')?.scrollIntoView({ behavior: 'smooth' })
   }
 
-  // ── Session resolving — don't navigate while state is settling ──
-  // During the sync window (nextAuthStatus:'loading' or contextLoading),
-  // button clicks would incorrectly see user_id as null.
-  // We wait until both signals agree before allowing navigation.
   const sessionReady = isClient && !contextLoading && nextAuthStatus !== 'loading'
   const isLoggedIn   = sessionReady && !!user_id
 
-  const handleGetStarted = () => {
-    if (!sessionReady) return   // Don't navigate while session is resolving
-    router.push(isLoggedIn ? '/upload' : '/auth')
-  }
+  const handleGetStarted  = () => { if (sessionReady) router.push(isLoggedIn ? '/upload' : '/auth') }
+  const handleUploadResume= () => { if (sessionReady) router.push(isLoggedIn ? '/upload' : '/auth') }
+  const handleSignOut     = () => { setDropdownOpen(false); clearSession(); router.push('/auth') }
 
-  const handleUploadResume = () => {
-    if (!sessionReady) return
-    router.push(isLoggedIn ? '/upload' : '/auth')
-  }
-
-  const handleSignOut = () => {
-    setDropdownOpen(false)
-    clearSession()
-    router.push('/auth')
-  }
-
-  const storedEmail  = isClient ? (localStorage.getItem('ai_job_agent_email') || '') : ''
-  const storedPhone  = isClient ? (localStorage.getItem('ai_job_agent_phone') || '') : ''
-  const lastSignOut  = isClient ? (localStorage.getItem(STORAGE_KEYS.LAST_SIGNOUT) || '') : ''
-  const firstLetter  = userName ? userName.charAt(0).toUpperCase() : '?'
+  const storedEmail = isClient ? (localStorage.getItem('ai_job_agent_email') || '') : ''
+  const storedPhone = isClient ? (localStorage.getItem('ai_job_agent_phone') || '') : ''
+  const lastSignOut = isClient ? (localStorage.getItem(STORAGE_KEYS.LAST_SIGNOUT) || '') : ''
+  const firstLetter = userName ? userName.charAt(0).toUpperCase() : '?'
 
   return (
     <div className="min-h-screen bg-[#0F172A] animate-fade-in">
@@ -203,10 +171,27 @@ export default function LandingPage() {
         </div>
 
         <div className="flex items-center gap-3" suppressHydrationWarning>
-          {/* Show correct nav state based on resolved session */}
           {isLoggedIn ? (
-            // ── Logged in ──────────────────────────────────
             <>
+              {/* ── Favorite Jobs button — left of Dashboard ── */}
+              <button
+                onClick={() => router.push('/favorites')}
+                className="px-5 py-2.5 text-sm font-semibold rounded-full border transition-all duration-200 flex items-center gap-2"
+                style={{ backgroundColor: '#1E293B', borderColor: '#334155', color: '#F8FAFC' }}
+                onMouseEnter={e => {
+                  e.currentTarget.style.backgroundColor = '#334155'
+                  e.currentTarget.style.borderColor     = '#7C3AED'
+                }}
+                onMouseLeave={e => {
+                  e.currentTarget.style.backgroundColor = '#1E293B'
+                  e.currentTarget.style.borderColor     = '#334155'
+                }}
+              >
+                <Bookmark size={14} />
+                Favorites
+              </button>
+
+              {/* Dashboard */}
               <button
                 className="px-5 py-2.5 text-sm font-semibold text-white rounded-full border transition-all duration-200"
                 style={{ backgroundColor: '#1E293B', borderColor: '#334155' }}
@@ -222,6 +207,7 @@ export default function LandingPage() {
                 Dashboard
               </button>
 
+              {/* Get Started */}
               <button
                 onClick={handleGetStarted}
                 className="px-6 py-2.5 text-sm font-semibold rounded-full border transition-all duration-200"
@@ -238,7 +224,7 @@ export default function LandingPage() {
                 Get Started
               </button>
 
-              {/* Profile circle + dropdown */}
+              {/* Profile dropdown */}
               <div className="relative" ref={dropdownRef}>
                 <button
                   onClick={() => setDropdownOpen(prev => !prev)}
@@ -304,7 +290,6 @@ export default function LandingPage() {
               </div>
             </>
           ) : (
-            // ── Logged out ────────────────────────────────
             <>
               <button
                 onClick={handleGetStarted}
@@ -449,6 +434,7 @@ export default function LandingPage() {
           <p className="text-[#64748B] text-sm mb-4">
             Built by Sairam Goud Palle · CBIT Hyderabad · 2026
           </p>
+          
           <a
             href="https://github.com/sairam-it/ai-job-agent"
             target="_blank" rel="noopener noreferrer"
@@ -459,6 +445,7 @@ export default function LandingPage() {
           </a>
         </div>
       </footer>
+
     </div>
   )
 }

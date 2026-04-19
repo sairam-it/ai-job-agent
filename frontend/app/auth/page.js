@@ -1,4 +1,3 @@
-// app/auth/page.js
 'use client'
 
 import { useState, useEffect, useRef, Suspense } from 'react'
@@ -14,7 +13,9 @@ import { STORAGE_KEYS } from '@/lib/context/AppContext'
 function AuthContent() {
   const router = useRouter()
   const { data: session, status: sessionStatus } = useSession()
-  const { setUserId, setToken, setUserName } = useApp()
+  // ── MODIFIED: Added clearUserData to the useApp destructure ──────────
+  const { setUserId, setToken, setUserName, clearUserData } = useApp()
+  
 
   const [mode,          setMode]          = useState('signin')
   const [loading,       setLoading]       = useState(false)
@@ -39,6 +40,7 @@ function AuthContent() {
   const [otpLoading,   setOtpLoading]   = useState(false)
   const [pendingEmail, setPendingEmail] = useState('')
   const otpRefs = useRef([])
+
 
   // ── On mount: clear stale NextAuth sessions ───────────────
   // When user explicitly signs out, clearSession() sets FORCE_REAUTH.
@@ -141,7 +143,7 @@ function AuthContent() {
     }
   }
 
-  // ── Email / password sign-in ──────────────────────────────
+  // ── MODIFIED: Replace handleSignIn success block ──────────────────────────
   const handleSignIn = async (e) => {
     e.preventDefault()
     setError('')
@@ -167,13 +169,15 @@ function AuthContent() {
       const data = await res.json()
 
       if (res.ok) {
+        // TASK 2 FIX: Clear ALL previous user data before writing new
+        clearUserData()
         sessionStorage.setItem('aija_session_token',   data.token)
         sessionStorage.setItem('aija_session_user_id', data.user_id)
         localStorage.setItem('ai_job_agent_name',  data.name)
         localStorage.setItem('ai_job_agent_email', signInEmail.trim().toLowerCase())
 
         // Clear force-reauth flag on successful login
-        localStorage.removeItem(STORAGE_KEYS.FORCE_REAUTH)
+        localStorage.removeItem('aija_force_reauth')
 
         setToken(data.token)
         setUserId(data.user_id)
@@ -196,7 +200,7 @@ function AuthContent() {
     }
   }
 
-  // ── Send OTP ───────────────────────────────────────────────
+  // ── MODIFIED: Replace handleSendOtp success block ─────────────────────────
   const handleSendOtp = async (e) => {
     e.preventDefault()
     setError('')
@@ -233,6 +237,9 @@ function AuthContent() {
 
       if (res.ok) {
         setPendingEmail(signUpEmail.trim().toLowerCase())
+        
+        // TASK 2 FIX: Clear old data first
+        clearUserData()
         localStorage.setItem('ai_job_agent_email', signUpEmail.trim().toLowerCase())
         if (signUpPhone.trim()) {
           localStorage.setItem('ai_job_agent_phone', signUpPhone.trim())
@@ -283,7 +290,7 @@ function AuthContent() {
     otpRefs.current[Math.min(pasted.length, 5)]?.focus()
   }
 
-  // ── Verify OTP ─────────────────────────────────────────────
+  // ── MODIFIED: Replace handleVerifyOtp success block ───────────────────────
   const handleVerifyOtp = async () => {
     const otp = otpInputs.join('')
     if (otp.length !== 6) {
@@ -302,11 +309,13 @@ function AuthContent() {
       const data = await res.json()
 
       if (res.ok) {
+        // TASK 2 FIX: Clear stale data before writing new user's data
+        clearUserData()
         sessionStorage.setItem('aija_session_token',   data.token)
         sessionStorage.setItem('aija_session_user_id', data.user_id)
         localStorage.setItem('ai_job_agent_name', data.name)
 
-        localStorage.removeItem(STORAGE_KEYS.FORCE_REAUTH)
+        localStorage.removeItem('aija_force_reauth')
 
         setToken(data.token)
         setUserId(data.user_id)

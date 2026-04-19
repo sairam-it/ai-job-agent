@@ -1,6 +1,6 @@
 // lib/api.js
 
-const BASE_URL = 'http://localhost:8000'
+const BASE_URL = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:8000'
 
 function getToken() {
   if (typeof window === 'undefined') return null
@@ -37,11 +37,6 @@ export async function getProfile(userId) {
 // ── Companies ─────────────────────────────────────────────
 
 export async function getUserCompanies(userId) {
-  /**
-   * GET /api/companies/{user_id}
-   * Returns: { selected_companies, custom_companies_list, hidden_companies }
-   * Called on /companies page mount to restore previous state.
-   */
   const res = await fetch(`${BASE_URL}/api/companies/${userId}`, {
     headers: authHeaders()
   })
@@ -50,10 +45,6 @@ export async function getUserCompanies(userId) {
 }
 
 export async function selectCompanies(userId, companies) {
-  /**
-   * POST /api/companies/select
-   * Saves selected companies. Auto-detects and stores custom ones.
-   */
   const res = await fetch(`${BASE_URL}/api/companies/select`, {
     method : 'POST',
     headers: { 'Content-Type': 'application/json', ...authHeaders() },
@@ -64,11 +55,6 @@ export async function selectCompanies(userId, companies) {
 }
 
 export async function deleteCompany(userId, companyName) {
-  /**
-   * DELETE /api/companies/{user_id}/{company_name}
-   * Hides company from user's view permanently.
-   * Encoded to handle spaces and special chars in company names.
-   */
   const encoded = encodeURIComponent(companyName)
   const res = await fetch(`${BASE_URL}/api/companies/${userId}/${encoded}`, {
     method : 'DELETE',
@@ -119,6 +105,92 @@ export async function getJobDetail(userId, title, company) {
   const res = await fetch(`${BASE_URL}/api/jobs/detail?${params}`, {
     headers: authHeaders()
   })
+  if (!res.ok) throw new Error(await res.text())
+  return res.json()
+}
+
+// lib/api.js — replace saveJob only
+
+export async function saveJob(userId, job) {
+  /**
+   * Sends full job data alongside user_id/title/company.
+   * Backend uses scraped_jobs first, falls back to this payload.
+   * This fixes favorites not appearing when scraped_jobs lookup fails.
+   */
+  const res = await fetch(`${BASE_URL}/api/jobs/save`, {
+    method : 'POST',
+    headers: { 'Content-Type': 'application/json', ...authHeaders() },
+    body   : JSON.stringify({
+      user_id         : userId,
+      title           : job.title           || '',
+      company         : job.company         || '',
+      location        : job.location        || '',
+      url             : job.url             || '',
+      grade           : job.grade           || '',
+      match_score     : job.match_score     || 0,
+      raw_match       : job.raw_match       || job.match_score || 0,
+      experience_level: job.experience_level|| '',
+      description     : job.description     || '',
+      matched_skills  : job.matched_skills  || [],
+      missing_skills  : job.missing_skills  || [],
+      required_skills : job.required_skills || job.all_required || [],
+      match_reason    : job.match_reason    || '',
+      source          : job.source          || 'selected',
+      date_posted     : job.date_posted     || '',
+    })
+  })
+  if (!res.ok) throw new Error(await res.text())
+  return res.json()
+}
+
+export async function unsaveJob(userId, title, company) {
+  const params = new URLSearchParams({ user_id: userId, title, company })
+  const res = await fetch(`${BASE_URL}/api/jobs/save?${params}`, {
+    method : 'DELETE',
+    headers: authHeaders()
+  })
+  if (!res.ok) throw new Error(await res.text())
+  return res.json()
+}
+
+export async function getSavedJobs(userId) {
+  const res = await fetch(`${BASE_URL}/api/jobs/saved?user_id=${userId}`, {
+    headers: authHeaders()
+  })
+  if (!res.ok) throw new Error(await res.text())
+  return res.json()
+}
+
+export async function checkJobSaved(userId, title, company) {
+  const params = new URLSearchParams({ user_id: userId, title, company })
+  const res = await fetch(`${BASE_URL}/api/jobs/saved/check?${params}`, {
+    headers: authHeaders()
+  })
+  if (!res.ok) return { is_saved: false }
+  return res.json()
+}
+
+// ── Apply Kit ─────────────────────────────────────────────
+
+export async function getApplyKit(userId, title, company) {
+  const res = await fetch(`${BASE_URL}/api/jobs/apply-kit`, {
+    method : 'POST',
+    headers: { 'Content-Type': 'application/json', ...authHeaders() },
+    body   : JSON.stringify({ user_id: userId, title, company })
+  })
+  if (!res.ok) throw new Error(await res.text())
+  return res.json()
+}
+
+export async function saveMissingFields(userId, fields) {
+  const res = await fetch(
+    `${BASE_URL}/api/jobs/save-missing-fields?user_id=${userId}`,
+    {
+      method : 'POST',
+      headers: { 'Content-Type': 'application/json', ...authHeaders() },
+      body   : JSON.stringify(fields)
+    }
+  )
   if (!res.ok) throw new Error(await res.text())
   return res.json()
 }
