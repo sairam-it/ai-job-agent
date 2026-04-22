@@ -1,19 +1,16 @@
 # api/routes/jobs.py
-from fastapi import APIRouter, HTTPException, Request, Query
-from pydantic import BaseModel
 from slowapi import Limiter
 from slowapi.util import get_remote_address
 from api.database import db
+from api.auth_utils import decode_token
 from services.job_research_service import research_all_companies
 
-# Add these imports at top of jobs.py
 from services.apply_service import generate_apply_kit
 from services.llm_service import generate_cover_letter_for_job
 
-# api/routes/jobs.py
-# ── Add these imports at the top ──────────────────────────
-from fastapi import APIRouter, HTTPException, Request, Query, Header
-from pydantic import BaseModel
+from fastapi import APIRouter, HTTPException, Request, Query, Header, Depends
+from pydantic import BaseModel, Field
+from typing import Optional, List
 from datetime import datetime
 
 router  = APIRouter()
@@ -25,6 +22,16 @@ scraped_jobs_collection = db["scraped_jobs"]
 saved_jobs_collection = db["saved_jobs"]
 
 _job_store: dict[str, list] = {}
+
+
+def get_user_from_token(authorization: str):
+    """Extracts user_id from Bearer token header."""
+    if not authorization or not authorization.startswith("Bearer "):
+        raise HTTPException(status_code=401, detail="Missing or invalid token.")
+    try:
+        return decode_token(authorization.split(" ")[1])
+    except Exception:
+        raise HTTPException(status_code=401, detail="Token expired or invalid.")
 
 
 class ScrapeRequest(BaseModel):
@@ -139,12 +146,32 @@ async def get_jobs(
 
 @router.get("/jobs/detail")
 async def get_job_detail(user_id: str, title: str, company: str):
+    """
+    Looks up a job by title + company for this user.
+
+    Two-collection lookup strategy:
+      1. Check scraped_jobs (live research results)
+      2. If not found, check saved_jobs (favorites)
+
+    This fixes "Job not found" when navigating from /favorites,
+    because saved/demo jobs may only exist in saved_jobs.
+    """
+    # Primary: scraped_jobs collection
     job = await scraped_jobs_collection.find_one(
         {"user_id": user_id, "title": title, "company": company},
         {"_id": 0, "user_id": 0}
     )
+
+    # Fallback: saved_jobs collection
+    if not job:
+        job = await db["saved_jobs"].find_one(
+            {"user_id": user_id, "title": title, "company": company},
+            {"_id": 0, "user_id": 0, "saved_at": 0}
+        )
+
     if not job:
         raise HTTPException(status_code=404, detail="Job not found.")
+
     return job
 
 
@@ -298,24 +325,23 @@ async def save_missing_fields(
 # api/routes/jobs.py — replace the save_job endpoint only
 
 class SaveJobRequest(BaseModel):
-    user_id : str
-    title   : str
-    company : str
-    # Optional full job data — sent by frontend when saving from detail page
-    # Prevents 404 when job exists in a different user's scraped_jobs
-    location         : str   = ""
-    url              : str   = ""
-    grade            : str   = ""
-    match_score      : int   = 0
-    raw_match        : int   = 0
-    experience_level : str   = ""
-    description      : str   = ""
-    matched_skills   : list  = []
-    missing_skills   : list  = []
-    required_skills  : list  = []
-    match_reason     : str   = ""
-    source           : str   = "selected"
-    date_posted      : str   = ""
+    user_id          : str
+    title            : str
+    company          : str
+    location         : str          = ""
+    url              : str          = ""
+    url_status       : str          = "direct"
+    grade            : str          = ""
+    match_score      : int          = 0
+    raw_match        : int          = 0
+    experience_level : str          = ""
+    description      : str          = ""
+    matched_skills   : List[str]    = Field(default_factory=list)
+    missing_skills   : List[str]    = Field(default_factory=list)
+    required_skills  : List[str]    = Field(default_factory=list)
+    match_reason     : str          = ""
+    source           : str          = "selected"
+    date_posted      : str          = ""
 
 
 @router.post("/jobs/save")
@@ -323,21 +349,30 @@ async def save_job(body: SaveJobRequest, authorization: str = Header(None)):
     """
     Saves a job to user's personal favorites.
 
-    Strategy:
-      1. Try to fetch full job from scraped_jobs for this user
-      2. If not found, build document from request body fields
-         (frontend sends full job data from its local state)
-      3. Upsert into saved_jobs — idempotent, no duplicates
+    User isolation strategy:
+      Every document in saved_jobs has user_id field.
+      All queries filter by user_id — impossible to
+      read another user's saved jobs without their user_id.
+      MongoDB compound index on (user_id, title, company)
+      enforces uniqueness per user, not globally.
 
-    This two-path approach fixes the case where:
-      - Job was seeded without matching user_id
-      - Job comes from demo data inserted by seed script
-      - User navigated to job detail via direct URL
+    Two-path save:
+      Path 1 — job exists in scraped_jobs for this user
+      Path 2 — build document from request body (demo data,
+               seeded jobs, or jobs from other sessions)
     """
-    from datetime import datetime
+    # Verify token
+    calling_user = get_user_from_token(authorization)
 
-    # Path 1: try to get full data from scraped_jobs
-    job = await scraped_jobs_collection.find_one(
+    # Security: user_id in body must match token
+    if calling_user != body.user_id:
+        raise HTTPException(
+            status_code=403,
+            detail="Cannot save jobs for another user."
+        )
+
+    # Path 1: look up from scraped_jobs
+    scraped = await scraped_jobs_collection.find_one(
         {
             "user_id": body.user_id,
             "title"  : body.title,
@@ -346,19 +381,16 @@ async def save_job(body: SaveJobRequest, authorization: str = Header(None)):
         {"_id": 0}
     )
 
-    if job:
-        print(f"[SaveJob] Found in scraped_jobs: {body.title} @ {body.company}")
-        save_doc = {**job}
+    if scraped:
+        save_doc = {k: v for k, v in scraped.items() if k != "_id"}
     else:
         # Path 2: build from request body
-        # Frontend must send full job data when calling this endpoint
-        print(f"[SaveJob] Not in scraped_jobs, building from request body: {body.title}")
         save_doc = {
-            "user_id"        : body.user_id,
             "title"          : body.title,
             "company"        : body.company,
             "location"       : body.location,
             "url"            : body.url,
+            "url_status"     : body.url_status,
             "grade"          : body.grade,
             "match_score"    : body.match_score,
             "raw_match"      : body.raw_match,
@@ -372,10 +404,11 @@ async def save_job(body: SaveJobRequest, authorization: str = Header(None)):
             "date_posted"    : body.date_posted,
         }
 
+    # Always overwrite user_id and saved_at with authoritative values
+    save_doc["user_id"]  = body.user_id
     save_doc["saved_at"] = datetime.utcnow().isoformat()
-    save_doc["user_id"]  = body.user_id   # ensure correct user_id always
 
-    result = await db["saved_jobs"].update_one(
+    await saved_jobs_collection.update_one(
         {
             "user_id": body.user_id,
             "title"  : body.title,
@@ -385,79 +418,56 @@ async def save_job(body: SaveJobRequest, authorization: str = Header(None)):
         upsert=True
     )
 
-    action = "updated" if result.matched_count > 0 else "saved"
-    print(f"[SaveJob] {action}: {body.title} @ {body.company} for user {body.user_id[:8]}")
-
-    return {
-        "message"  : f"'{body.title}' saved to your favorites.",
-        "action"   : action,
-    }
+    return {"message": f"'{body.title}' saved to your favorites.", "saved": True}
 
 
 @router.delete("/jobs/save")
 async def unsave_job(
-    user_id : str,
-    title   : str,
-    company : str,
+    user_id      : str,
+    title        : str,
+    company      : str,
     authorization: str = Header(None)
 ):
-    """
-    Removes a job from the user's favorites.
-    Only deletes the document owned by this user_id.
-    """
-    result = await db["saved_jobs"].delete_one(
-        {
-            "user_id": user_id,
-            "title"  : title,
-            "company": company,
-        }
-    )
+    calling_user = get_user_from_token(authorization)
+    if calling_user != user_id:
+        raise HTTPException(status_code=403, detail="Cannot modify another user's favorites.")
 
+    result = await saved_jobs_collection.delete_one(
+        {"user_id": user_id, "title": title, "company": company}
+    )
     if result.deleted_count == 0:
         raise HTTPException(status_code=404, detail="Saved job not found.")
 
-    return {"message": f"'{title}' removed from your favorites."}
+    return {"message": f"'{title}' removed from favorites.", "saved": False}
 
 
 @router.get("/jobs/saved")
 async def get_saved_jobs(
-    user_id : str,
+    user_id      : str,
     authorization: str = Header(None)
 ):
-    """
-    Returns all saved jobs for this user, sorted by save date descending.
-    Strictly filtered by user_id — impossible to see another user's saves.
-    """
-    cursor = db["saved_jobs"].find(
+    calling_user = get_user_from_token(authorization)
+    if calling_user != user_id:
+        raise HTTPException(status_code=403, detail="Cannot view another user's favorites.")
+
+    cursor = saved_jobs_collection.find(
         {"user_id": user_id},
         {"_id": 0, "user_id": 0}
     ).sort("saved_at", -1)
 
-    jobs = await cursor.to_list(length=200)
-
-    return {
-        "jobs" : jobs,
-        "total": len(jobs),
-    }
+    jobs = await cursor.to_list(length=500)
+    return {"jobs": jobs, "total": len(jobs)}
 
 
 @router.get("/jobs/saved/check")
 async def check_job_saved(
-    user_id : str,
-    title   : str,
-    company : str,
+    user_id      : str,
+    title        : str,
+    company      : str,
     authorization: str = Header(None)
 ):
-    """
-    Returns whether a specific job is saved by this user.
-    Used by JobDetailPage to show filled/unfilled heart icon.
-    """
-    existing = await db["saved_jobs"].find_one(
-        {
-            "user_id": user_id,
-            "title"  : title,
-            "company": company,
-        },
+    existing = await saved_jobs_collection.find_one(
+        {"user_id": user_id, "title": title, "company": company},
         {"_id": 1}
     )
     return {"is_saved": existing is not None}

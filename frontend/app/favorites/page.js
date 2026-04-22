@@ -261,13 +261,24 @@ export default function FavoritesPage() {
     }
   }
 
-  // ── View Details → navigate to job detail page ─────────
+  // In favorites/page.js — replace handleViewDetails
   const handleViewDetails = (job) => {
-    const titleSlug   = encodeURIComponent(job.title)
-    const companySlug = encodeURIComponent(job.company)
-    // Navigate to your existing job detail page
-    // Adjust this path to match your actual /jobs/[id] structure
-    router.push(`/jobs/detail?title=${titleSlug}&company=${companySlug}&from=favorites`)
+    if (!job?.title || !job?.company) {
+      console.error('[Favorites] Cannot navigate — missing title or company')
+      return
+    }
+
+    // Route matches app/jobs/[id]/page.js exactly:
+    //   [id]  = encoded title (read as params.id in the page)
+    //   ?company = required query param
+    //   ?user_id = required for data fetching
+    //   ?from=favorites = tells the page where to go "Back" to
+    const encodedTitle   = encodeURIComponent(job.title)
+    const encodedCompany = encodeURIComponent(job.company)
+
+    router.push(
+      `/jobs/${encodedTitle}?company=${encodedCompany}&user_id=${user_id}&from=favorites`
+    )
   }
 
   // ── Apply Now → open Apply Panel ──────────────────────

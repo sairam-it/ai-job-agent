@@ -613,9 +613,12 @@ export default function ApplyPanel({ applyData, onClose }) {
 
                 {/* Cover letter collapsible */}
                 <div className="rounded-lg overflow-hidden mt-1" style={{ border: '1px solid #334155' }}>
-                  <button
+                  <div
+                    role="button"
+                    tabIndex={0}
                     onClick={() => setShowCoverLetter(p => !p)}
-                    className="w-full flex items-center justify-between px-3 py-2.5 transition-all duration-150"
+                    onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') setShowCoverLetter(p => !p) }}
+                    className="w-full flex items-center justify-between px-3 py-2.5 transition-all duration-150 cursor-pointer"
                     style={{ backgroundColor: 'rgba(15,23,42,0.8)' }}
                     onMouseEnter={e => e.currentTarget.style.backgroundColor = '#1E293B'}
                     onMouseLeave={e => e.currentTarget.style.backgroundColor = 'rgba(15,23,42,0.8)'}
@@ -642,7 +645,7 @@ export default function ApplyPanel({ applyData, onClose }) {
                         : <ChevronDown size={15} style={{ color: '#475569' }} />
                       }
                     </div>
-                  </button>
+                  </div>
 
                   {showCoverLetter && (
                     <div className="px-4 py-3"

@@ -3,12 +3,12 @@
 import { useState, useEffect } from 'react'
 import { useParams, useSearchParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { 
-  ChevronRight, 
-  MapPin, 
-  Briefcase, 
-  Calendar, 
-  ExternalLink, 
+import {
+  ChevronRight,
+  MapPin,
+  Briefcase,
+  Calendar,
+  ExternalLink,
   Bookmark,
   BookmarkCheck,
   FileText,
@@ -20,37 +20,43 @@ import {
   ChevronUp,
   Send
 } from 'lucide-react'
-import { Navbar } from '@/components/Navbar'
-import { GradeBadge } from '@/components/GradeBadge'
-import { MatchRing } from '@/components/MatchRing'
-import { SkillChip } from '@/components/SkillChip'
-import { SkeletonJobDetail } from '@/components/SkeletonCard'
-import { useToast } from '@/components/ToastProvider'
-import { getJobDetail, getApplyKit } from '@/lib/api'
-import { useApp } from '@/lib/context/AppContext'
-import ApplyPanel from '@/components/ApplyPanel'
+import { Navbar }             from '@/components/Navbar'
+import { GradeBadge }         from '@/components/GradeBadge'
+import { MatchRing }          from '@/components/MatchRing'
+import { SkillChip }          from '@/components/SkillChip'
+import { SkeletonJobDetail }  from '@/components/SkeletonCard'
+import { useToast }           from '@/components/ToastProvider'
+import {
+  getJobDetail,
+  getApplyKit,
+  saveJob,         // ← was missing
+  unsaveJob,       // ← was missing
+  checkJobSaved,   // ← was missing
+} from '@/lib/api'
+import { useApp }    from '@/lib/context/AppContext'
+import ApplyPanel    from '@/components/ApplyPanel'
 
 export default function JobDetailPage() {
-  const params = useParams()
+  const params       = useParams()
   const searchParams = useSearchParams()
-  const router = useRouter()
-  const toast = useToast()
-  const { user_id: contextUserId } = useApp() // Get user_id from context
+  const router       = useRouter()
+  const toast        = useToast()
+  const { user_id: contextUserId } = useApp()
 
-  const title = decodeURIComponent(params.id || '')
+  const title   = decodeURIComponent(params.id || '')
   const company = searchParams.get('company') || ''
-  const user_id = searchParams.get('user_id') || contextUserId // Fallback to context
+  const user_id = searchParams.get('user_id') || contextUserId
 
-  const [job, setJob] = useState(null)
-  const [isLoading, setIsLoading] = useState(true)
-  const [isSaved, setIsSaved] = useState(false)
+  const [job,                 setJob]                = useState(null)
+  const [isLoading,           setIsLoading]           = useState(true)
+  const [isSaved,             setIsSaved]             = useState(false)
+  const [saveLoading,         setSaveLoading]         = useState(false)  // ← new
   const [showFullDescription, setShowFullDescription] = useState(false)
+  const [applyLoading,        setApplyLoading]        = useState(false)
+  const [applyData,           setApplyData]           = useState(null)
+  const [applyError,          setApplyError]          = useState('')
 
-  // New Apply Logic States
-  const [applyLoading, setApplyLoading] = useState(false)
-  const [applyData, setApplyData] = useState(null)
-  const [applyError, setApplyError] = useState('')
-
+  // ── Fetch job details ────────────────────────────────
   useEffect(() => {
     if (!user_id || !title || !company) {
       router.push('/jobs')
@@ -74,18 +80,55 @@ export default function JobDetailPage() {
     fetchJob()
   }, [user_id, title, company, router, toast])
 
-  const getCompanyColor = (name) => {
-    const colors = ['bg-blue-500', 'bg-green-500', 'bg-purple-500', 'bg-orange-500', 'bg-red-500', 'bg-teal-500']
-    const index = (name?.charCodeAt(0) || 0) % colors.length
-    return colors[index]
+  // ── Restore saved state from database on mount ───────
+  // This runs after job is loaded so we know title + company.
+  // Without this, the button always shows "Save" even if
+  // the user already saved it in a previous session.
+  useEffect(() => {
+    if (!job || !user_id) return
+
+    const restoreSavedState = async () => {
+      try {
+        const result = await checkJobSaved(user_id, job.title, job.company)
+        setIsSaved(result.is_saved)
+      } catch (err) {
+        // Non-fatal — button defaults to unsaved state
+        console.warn('[JobDetail] Could not check saved state:', err)
+      }
+    }
+
+    restoreSavedState()
+  }, [job, user_id])
+
+  // ── Save / unsave ─────────────────────────────────────
+  // THE FIX: actually calls saveJob() / unsaveJob() from api.js
+  // and passes the full job object so the backend can persist it.
+  const handleSave = async () => {
+    if (!user_id || !job || saveLoading) return
+
+    setSaveLoading(true)
+    try {
+      if (isSaved) {
+        await unsaveJob(user_id, job.title, job.company)
+        setIsSaved(false)
+        toast.info('Job removed from favorites')
+      } else {
+        // Pass full job object — backend needs all fields
+        // for the two-path save (scraped_jobs lookup → fallback)
+        await saveJob(user_id, job)
+        setIsSaved(true)
+        toast.success('Job saved to favorites!')
+      }
+    } catch (err) {
+      console.error('[JobDetail] Save error:', err)
+      toast.error(err.message || 'Could not update saved state. Please try again.')
+      // Do NOT update isSaved — keep it in sync with actual DB state
+    } finally {
+      setSaveLoading(false)
+    }
   }
 
-  const handleSave = () => {
-    setIsSaved(!isSaved)
-    toast.info(isSaved ? 'Job removed from saved' : 'Job saved!')
-  }
-
-  // Combined Advanced Apply Logic
+  // ── Apply kit ─────────────────────────────────────────
   const handleApply = async () => {
     setApplyError('')
     setApplyLoading(true)
@@ -102,6 +145,12 @@ export default function JobDetailPage() {
     }
   }
 
+  const getCompanyColor = (name) => {
+    const colors = ['bg-blue-500','bg-green-500','bg-purple-500','bg-orange-500','bg-red-500','bg-teal-500']
+    return colors[(name?.charCodeAt(0) || 0) % colors.length]
+  }
+
+  // ── Loading state ─────────────────────────────────────
   if (isLoading) {
     return (
       <div className="min-h-screen bg-[#0F172A]">
@@ -122,10 +171,9 @@ export default function JobDetailPage() {
 
   if (!job) return null
 
-  const matchedSkills = Array.isArray(job.matched_skills) ? job.matched_skills : []
-  const missingSkills = Array.isArray(job.missing_skills) ? job.missing_skills : []
-  const requiredSkills = Array.isArray(job.required_skills) ? job.required_skills : []
-  const matchedCount = matchedSkills.length
+  const matchedSkills  = Array.isArray(job.matched_skills)  ? job.matched_skills  : []
+  const missingSkills  = Array.isArray(job.missing_skills)  ? job.missing_skills  : []
+  const matchedCount   = matchedSkills.length
   const totalSkillsCount = matchedCount + missingSkills.length
 
   return (
@@ -142,7 +190,6 @@ export default function JobDetailPage() {
           <span className="text-white truncate max-w-xs">{job.title}</span>
         </nav>
 
-        {/* Back Button */}
         <Link
           href="/jobs"
           className="inline-flex items-center gap-2 text-[#94A3B8] hover:text-white transition-colors mb-6"
@@ -150,10 +197,10 @@ export default function JobDetailPage() {
           ← Back to Jobs
         </Link>
 
-        {/* Two Column Layout */}
         <div className="grid lg:grid-cols-[1fr_350px] gap-6">
-          {/* Left Column */}
+          {/* ── Left Column ─────────────────────────── */}
           <div className="space-y-6">
+
             {/* Job Header Card */}
             <div className="bg-[#1E293B] rounded-xl p-6">
               <div className="flex items-start gap-4 mb-4">
@@ -186,7 +233,7 @@ export default function JobDetailPage() {
                   </div>
                 </div>
               </div>
-              
+
               {job.experience_level && (
                 <div className="flex items-center gap-2 mt-4">
                   <Briefcase className="w-4 h-4 text-[#94A3B8]" />
@@ -209,7 +256,11 @@ export default function JobDetailPage() {
               </div>
 
               <p className="text-[#94A3B8] text-center mb-6">
-                You match <span className="text-white font-bold">{matchedCount}</span> out of <span className="text-white font-bold">{totalSkillsCount}</span> required skills
+                You match{' '}
+                <span className="text-white font-bold">{matchedCount}</span>
+                {' '}out of{' '}
+                <span className="text-white font-bold">{totalSkillsCount}</span>
+                {' '}required skills
               </p>
 
               {matchedSkills.length > 0 && (
@@ -256,23 +307,23 @@ export default function JobDetailPage() {
                     onClick={() => setShowFullDescription(!showFullDescription)}
                     className="mt-3 text-[#7C3AED] text-sm font-medium flex items-center gap-1 md:hidden"
                   >
-                    {showFullDescription ? (
-                      <>Show Less <ChevronUp className="w-4 h-4" /></>
-                    ) : (
-                      <>Read More <ChevronDown className="w-4 h-4" /></>
-                    )}
+                    {showFullDescription
+                      ? <><ChevronUp className="w-4 h-4" /> Show Less</>
+                      : <><ChevronDown className="w-4 h-4" /> Read More</>
+                    }
                   </button>
                 )}
               </div>
             )}
           </div>
 
-          {/* Right Column */}
+          {/* ── Right Column ─────────────────────────── */}
           <div className="space-y-6 lg:sticky lg:top-24 lg:h-fit">
+
             {/* Apply Card */}
             <div className="bg-[#1E293B] rounded-xl p-6 shadow-xl">
               <h2 className="text-white font-bold text-lg mb-4">Ready to Apply?</h2>
-              
+
               <div className="space-y-3 mb-6">
                 <div className="flex items-center gap-3">
                   <div className={`w-8 h-8 ${getCompanyColor(job.company)} rounded-full flex items-center justify-center text-white font-bold`}>
@@ -285,39 +336,48 @@ export default function JobDetailPage() {
                   <span>{job.location || 'Not specified'}</span>
                 </div>
               </div>
-              
+
               <div className="border-t border-[#334155] pt-6 space-y-3">
-                {/* ADVANCED APPLY BUTTON */}
+                {/* Apply Now */}
                 <button
                   onClick={handleApply}
                   disabled={applyLoading}
                   className="w-full flex items-center justify-center gap-2 px-6 py-3 rounded-lg font-semibold transition-all duration-200 text-white"
                   style={{
                     backgroundColor: applyLoading ? '#334155' : '#7C3AED',
-                    opacity: applyLoading ? 0.7 : 1,
-                    cursor: applyLoading ? 'not-allowed' : 'pointer',
+                    opacity        : applyLoading ? 0.7 : 1,
+                    cursor         : applyLoading ? 'not-allowed' : 'pointer',
                   }}
                 >
-                  {applyLoading ? (
-                    <><Loader2 size={18} className="animate-spin" /> Preparing...</>
-                  ) : (
-                    <><Send size={18} /> Apply Now</>
-                  )}
+                  {applyLoading
+                    ? <><Loader2 size={18} className="animate-spin" /> Preparing...</>
+                    : <><Send size={18} /> Apply Now</>
+                  }
                 </button>
-                
+
                 {applyError && (
-                  <p className="text-sm mt-2 text-center" style={{ color: '#FCA5A5' }}>{applyError}</p>
+                  <p className="text-sm text-center" style={{ color: '#FCA5A5' }}>
+                    {applyError}
+                  </p>
                 )}
 
+                {/* Save Job — now actually persists to DB */}
                 <button
                   onClick={handleSave}
+                  disabled={saveLoading}
                   className={`w-full flex items-center justify-center gap-2 px-6 py-3 rounded-lg font-semibold transition-colors ${
-                    isSaved 
-                      ? 'bg-[#16A34A]/20 text-[#16A34A] border border-[#16A34A]' 
+                    isSaved
+                      ? 'bg-[#16A34A]/20 text-[#16A34A] border border-[#16A34A]'
                       : 'border border-[#334155] text-white hover:border-[#7C3AED] hover:text-[#7C3AED]'
-                  }`}
+                  } ${saveLoading ? 'opacity-60 cursor-not-allowed' : ''}`}
                 >
-                  {isSaved ? <><BookmarkCheck className="w-4 h-4" /> Saved</> : <><Bookmark className="w-4 h-4" /> Save Job</>}
+                  {saveLoading ? (
+                    <><Loader2 className="w-4 h-4 animate-spin" /> Saving...</>
+                  ) : isSaved ? (
+                    <><BookmarkCheck className="w-4 h-4" /> Saved</>
+                  ) : (
+                    <><Bookmark className="w-4 h-4" /> Save Job</>
+                  )}
                 </button>
               </div>
             </div>
@@ -326,7 +386,9 @@ export default function JobDetailPage() {
             <div className="bg-[#1E293B] rounded-xl p-6">
               <h2 className="text-white font-bold text-lg mb-4">Match Summary</h2>
               <div className="text-center mb-4">
-                <p className="text-[#7C3AED] text-5xl font-bold mb-2">{job.raw_match || 0}%</p>
+                <p className="text-[#7C3AED] text-5xl font-bold mb-2">
+                  {job.raw_match || 0}%
+                </p>
                 <GradeBadge grade={job.grade} size="large" />
               </div>
             </div>
@@ -346,13 +408,16 @@ export default function JobDetailPage() {
             disabled={applyLoading}
             className="flex-1 py-3 bg-[#7C3AED] text-white rounded-lg font-semibold flex items-center justify-center gap-2 disabled:opacity-70"
           >
-            {applyLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <><Send className="w-4 h-4" /> Apply</>}
+            {applyLoading
+              ? <Loader2 className="w-4 h-4 animate-spin" />
+              : <><Send className="w-4 h-4" /> Apply</>
+            }
           </button>
         </div>
-        
+
         <div className="h-20 lg:hidden" />
 
-        {/* Apply Panel Modal */}
+        {/* Apply Panel */}
         {applyData && (
           <ApplyPanel
             applyData={applyData}

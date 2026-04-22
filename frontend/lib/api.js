@@ -109,37 +109,41 @@ export async function getJobDetail(userId, title, company) {
   return res.json()
 }
 
-// lib/api.js — replace saveJob only
+// ── Saved Jobs / Favorites ────────────────────────────────
 
 export async function saveJob(userId, job) {
   /**
-   * Sends full job data alongside user_id/title/company.
-   * Backend uses scraped_jobs first, falls back to this payload.
-   * This fixes favorites not appearing when scraped_jobs lookup fails.
+   * Sends full job object alongside identity fields.
+   * Backend tries scraped_jobs first, falls back to
+   * this payload — so demo/seeded jobs also save correctly.
    */
   const res = await fetch(`${BASE_URL}/api/jobs/save`, {
     method : 'POST',
     headers: { 'Content-Type': 'application/json', ...authHeaders() },
     body   : JSON.stringify({
       user_id         : userId,
-      title           : job.title           || '',
-      company         : job.company         || '',
-      location        : job.location        || '',
-      url             : job.url             || '',
-      grade           : job.grade           || '',
-      match_score     : job.match_score     || 0,
-      raw_match       : job.raw_match       || job.match_score || 0,
-      experience_level: job.experience_level|| '',
-      description     : job.description     || '',
-      matched_skills  : job.matched_skills  || [],
-      missing_skills  : job.missing_skills  || [],
-      required_skills : job.required_skills || job.all_required || [],
-      match_reason    : job.match_reason    || '',
-      source          : job.source          || 'selected',
-      date_posted     : job.date_posted     || '',
+      title           : job.title            || '',
+      company         : job.company          || '',
+      location        : job.location         || '',
+      url             : job.url              || '',
+      url_status      : job.url_status       || 'direct',
+      grade           : job.grade            || '',
+      match_score     : job.match_score      || 0,
+      raw_match       : job.raw_match        || job.match_score || 0,
+      experience_level: job.experience_level || '',
+      description     : job.description      || '',
+      matched_skills  : job.matched_skills   || [],
+      missing_skills  : job.missing_skills   || [],
+      required_skills : job.required_skills  || job.all_required || [],
+      match_reason    : job.match_reason     || '',
+      source          : job.source           || 'selected',
+      date_posted     : job.date_posted      || '',
     })
   })
-  if (!res.ok) throw new Error(await res.text())
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    throw new Error(err.detail || 'Failed to save job.')
+  }
   return res.json()
 }
 
@@ -162,11 +166,16 @@ export async function getSavedJobs(userId) {
 }
 
 export async function checkJobSaved(userId, title, company) {
+  /**
+   * Returns { is_saved: true/false }.
+   * Called on JobDetailPage mount to restore button state
+   * across page navigations and browser refreshes.
+   */
   const params = new URLSearchParams({ user_id: userId, title, company })
   const res = await fetch(`${BASE_URL}/api/jobs/saved/check?${params}`, {
     headers: authHeaders()
   })
-  if (!res.ok) return { is_saved: false }
+  if (!res.ok) return { is_saved: false }   // graceful fallback
   return res.json()
 }
 
