@@ -222,7 +222,7 @@ NEXT_PUBLIC_BACKEND_URL=http://localhost:8000
 
 | Method | Endpoint | Description |
 |---|---|---|
-| POST | `/api/auth/signup` | Register new user |
+| POST | `/api/auth/signup` | Register new User |
 | POST | `/api/auth/signin` | Authenticate user |
 | POST | `/api/resume/upload` | Upload and parse resume |
 | GET | `/api/resume/{user_id}` | Get parsed profile |
