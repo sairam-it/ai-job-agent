@@ -16,12 +16,12 @@ export function Navbar() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
 
   return (
-    <nav className="sticky top-0 z-40 h-16 bg-[#0F172A]/80 backdrop-blur-md border-b border-[#334155]">
+    <nav className="sticky top-0 z-40 h-16 bg-[#0F172A]/70 backdrop-blur-sm border-b border-[#334155]">
       <div className="max-w-7xl mx-auto px-4 h-full flex items-center justify-between">
         {/* Logo */}
         <Link href="/" className="flex items-center gap-2">
-          <Zap className="w-6 h-6 text-[#7C3AED]" />
-          <span className="text-white font-bold text-lg">AI Job Agent</span>
+          <Zap className="w-6 h-6 text-[#A78BFA]" />
+          <span className="text-slate-100 font-semibold text-base">AI Job Agent</span>
         </Link>
 
         {/* Desktop Navigation */}
